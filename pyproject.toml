@@ -1,9 +1,8 @@
 [project]
 name = "math-llm"
 version = "0.1.0"
-description = "Website that makes use of LLMs to make learning math easier."
-readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "django==6.1",
+    "django>=6.1.1",
+    "ollama>=0.6.2",
 ]

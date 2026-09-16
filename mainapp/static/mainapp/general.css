@@ -1,0 +1,63 @@
+body {
+  --ink: #eef0f3;
+  --night: #0b0d10;
+  --panel: #151920;
+  --panel-hover: #1c222c;
+  --solver: #8ca8c9;
+  --generator: #b59686;
+
+  /* Reset default margin and padding */
+  margin: 0;
+  padding: 0;
+
+  /* Set a modern font for the entire page */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+  /* Set a light background color for the page */
+  background-color: var(--night);
+  background-image: radial-gradient(circle at 50% 0%, #252a34 0, var(--night) 52%);
+
+  /* Ensure the body takes up the full height of the viewport */
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.buttons {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.title {
+  /* Typography */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Modern sans-serif font */
+  font-size: 70px;            /* Large title size */
+  font-weight: 700;           /* Bold weight for emphasis */
+  
+  /* Color and Spacing */
+  color: var(--ink);
+  margin-bottom: 20px;        /* Space below the title */
+  
+  /* Text Effects */
+  text-shadow: 0 3px 18px rgba(0, 0, 0, 0.28); /* Subtle shadow for depth */
+}
+
+.mainsection {
+  /* Layout */
+  display: flex;              /* Uses Flexbox for layout */
+  flex-direction: column;     /* Stacks children vertically */
+  align-items: center;        /* Centers children horizontally */
+  justify-content: center;    /* Centers children vertically */
+  
+  /* Sizing */
+  width: 100%;                /* Full width of the parent container */
+  min-height: 100vh;          /* Minimum height of the viewport */
+  
+  /* Spacing */
+  padding: 40px;              /* Adds space inside the section */  
+
+}
+
+.title h1 {
+  margin: 0;
+}

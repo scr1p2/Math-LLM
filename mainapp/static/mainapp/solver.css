@@ -1,0 +1,89 @@
+@import "general.css"; 
+@import "features.css";
+
+.inputbox {
+  width: 1000px;
+  height: 450px;
+  background-color: #f0f0f0;
+  border: 2px solid #333333;
+  padding: 20px;
+  margin: 15px;
+  box-sizing: border-box;
+  border-radius: 12px; 
+}
+
+.inputfile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #c7c7c7;
+  border-radius: 8px;
+  background-color: #ffffff;
+}
+
+.inputfile label {
+  color: #333333;
+  font-weight: 600;
+}
+
+.inputfile input[type="file"] {
+  color: #555555;
+  font: inherit;
+}
+
+.inputfile input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 6px;
+  background-color: #333333;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+}
+
+.inputfile input[type="file"]::file-selector-button:hover {
+  background-color: #555555;
+}
+
+.description {
+  margin-bottom: 20px;
+  font-size: 40px;
+  color: #333333;
+}
+
+.submit {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.submitbutton {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: min(280px, 100%);
+  min-height: 56px;
+  padding: 12px 20px;
+  border: 1px solid #303744;
+  border-radius: 8px;
+  color: var(--ink);
+  background-color: var(--panel);
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 20px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.submitbutton:hover {
+  background-color: var(--panel-hover);
+  border-color: var(--ink);
+}
+
+.submitbutton:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 4px;
+}

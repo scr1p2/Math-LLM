@@ -1,0 +1,36 @@
+.buttons {
+    display: flex; 
+    justify-content: center;
+    gap: 20px;
+}
+
+.backbutton {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: min(280px, calc(100vw - 40px));
+    min-height: 56px;
+    padding: 12px 20px;
+    border: 1px solid #303744;
+    border-radius: 8px;
+    color: var(--ink);
+    background-color: var(--panel);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.backbutton:hover {
+    background-color: var(--panel-hover);
+    border-color: var(--ink);
+}
+
+.backbutton:focus-visible {
+    outline: 3px solid var(--ink);
+    outline-offset: 4px;
+}

@@ -1,0 +1,30 @@
+{% load static %}
+
+<!doctype html>
+<head>
+    <meta charset="utf-8">
+    <title>Solver</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/solver.css' %}">
+    <body>
+        <div class = "mainsection">
+            <div class = "title">
+                <h1>Solver</h1>
+            </div>
+            <div class = "inputbox">
+                <div class = "description">
+                    <p>Enter your problem below:</p>
+                </div>
+                <div class = "inputfile">
+                    <label for="fileInput">Upload a file:</label>
+                    <input type="file" id="fileInput" name="fileInput">
+                </div>
+                <div class = "submit">
+                    <button class = "submitbutton">Submit</button>
+                </div>
+            </div>
+            <div class = "buttons"> 
+                <button class = "backbutton" onclick="location.href='/'">Back to Homepage</button>
+            </div>
+        </div>
+    </body>
+</head>

@@ -6,55 +6,47 @@
 }
 
 .solverbutton, .generatorbutton {
-  /* Colors and Background */
   background-color: var(--panel);
   color: var(--ink);
-  
-  /* Typography */
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 25px;
+  backdrop-filter: blur(12px);
+  font-family: inherit;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
   font-weight: 600;
-  
-  /* Sizing and Spacing */
-  width: min(360px, 90vw);
-  padding: 32px 40px;        /* Larger, consistent button hit area */
+  width: min(360px, 100%);
+  min-height: 76px;
+  padding: 20px 28px;
   display: block;
-  margin: 0 auto 20px;
-  border: 1px solid #303744;
-  border-radius: 8px;        /* Smoothly rounded corners */
-  
-  /* Interactivity */
-  cursor: pointer;           /* Changes cursor to a hand on hover */
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22); /* Subtle shadow for depth */
-  
-  /* Smooth Animation */
-  transition: all 0.3s ease; /* Smoothly transitions styles over 0.3 seconds */
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.2);
+  transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
 }
 
 .solverbutton {
-  background-color: var(--panel);
-  border-color: var(--solver);
+  border-color: rgba(142, 199, 192, 0.55);
   color: var(--solver);
 }
 
 .generatorbutton {
-  background-color: var(--panel);
-  border-color: var(--generator);
+  border-color: rgba(226, 166, 111, 0.55);
   color: var(--generator);
 }
 
 /* Hover Effect (When mouse moves over the button) */
 .solverbutton:hover, .generatorbutton:hover {
-  transform: translateY(-2px); /* Delicately lifts the button up */
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28); /* Deepens the shadow */
+  transform: translateY(-4px);
+  box-shadow: 0 20px 38px rgba(0, 0, 0, 0.3);
 }
 
 .solverbutton:hover {
-  background-color: var(--panel-hover);
+  background-color: rgba(142, 199, 192, 0.12);
 }
 
 .generatorbutton:hover {
-  background-color: var(--panel-hover);
+  background-color: rgba(226, 166, 111, 0.12);
 }
 
 .solverbutton:focus-visible, .generatorbutton:focus-visible {
@@ -64,6 +56,7 @@
 
 /* Active Effect (When the button is clicked) */
 .solverbutton:active, .generatorbutton:active {
-  transform: translateY(0);  /* Pushes the button back down */
-  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.2); /* Lightens the shadow */
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
+

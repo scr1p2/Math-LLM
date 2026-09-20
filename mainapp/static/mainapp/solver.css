@@ -2,55 +2,57 @@
 @import "features.css";
 
 .inputbox {
-  width: 1000px;
-  height: 450px;
-  background-color: #f0f0f0;
-  border: 2px solid #333333;
-  padding: 20px;
-  margin: 15px;
+  width: min(920px, 100%);
+  min-height: 360px;
+  background-color: var(--panel);
+  border: 1px solid var(--line);
+  padding: clamp(22px, 4vw, 42px);
+  margin: 15px 0 28px;
   box-sizing: border-box;
-  border-radius: 12px; 
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(12px);
 }
 
-.inputfile {
+.box {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid #c7c7c7;
-  border-radius: 8px;
-  background-color: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background-color: rgba(9, 11, 15, 0.42);
 }
 
-.inputfile label {
-  color: #333333;
+.box label {
+  color: var(--muted);
   font-weight: 600;
 }
 
-.inputfile input[type="file"] {
-  color: #555555;
+.box input[type="file"] {
+  color: var(--ink);
   font: inherit;
 }
 
-.inputfile input[type="file"]::file-selector-button {
+.box input[type="file"]::file-selector-button {
   margin-right: 10px;
   padding: 8px 14px;
   border: 0;
-  border-radius: 6px;
-  background-color: #333333;
-  color: #ffffff;
+  border-radius: 8px;
+  background-color: var(--solver);
+  color: var(--night-deep);
   cursor: pointer;
   font: inherit;
 }
 
-.inputfile input[type="file"]::file-selector-button:hover {
-  background-color: #555555;
+.box input[type="file"]::file-selector-button:hover {
+  background-color: var(--ink);
 }
 
-.description {
+.box {
   margin-bottom: 20px;
-  font-size: 40px;
-  color: #333333;
+  font-size: clamp(1.2rem, 3vw, 1.8rem);
+  color: var(--ink);
 }
 
 .submit {
@@ -67,20 +69,21 @@
   width: min(280px, 100%);
   min-height: 56px;
   padding: 12px 20px;
-  border: 1px solid #303744;
-  border-radius: 8px;
+  border: 1px solid rgba(142, 199, 192, 0.55);
+  border-radius: 10px;
   color: var(--ink);
-  background-color: var(--panel);
+  background-color: rgba(142, 199, 192, 0.12);
   font-size: 18px;
   font-weight: 600;
   margin-top: 20px;
   cursor: pointer;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
 .submitbutton:hover {
-  background-color: var(--panel-hover);
-  border-color: var(--ink);
+  background-color: rgba(142, 199, 192, 0.2);
+  border-color: var(--solver);
+  transform: translateY(-2px);
 }
 
 .submitbutton:focus-visible {

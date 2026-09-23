@@ -1,0 +1,25 @@
+.llms-grid {
+    max-width: 780px;
+    width: min(100%, 780px);
+    display: grid;
+    gap: 18px;
+}
+
+.llm-card {
+    background: rgba(25, 31, 40, 0.7);
+    border: 1px solid rgba(142, 199, 192, 0.45);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.2);
+}
+
+.llm-card h2 {
+    margin: 0 0 10px;
+    color: var(--solver);
+}
+
+.llm-card p {
+    margin: 0;
+    line-height: 1.7;
+    color: var(--ink);
+}

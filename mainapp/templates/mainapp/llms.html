@@ -1,0 +1,31 @@
+{% load static %}
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>LLMs to Use</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/features.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/llms.css' %}">
+</head>
+<body>
+    <div class="mainsection">
+        <div class="title">
+            <h1>LLMs to Use</h1>
+        </div>
+
+        <div class="llms-grid">
+            <div class="llm-card">
+                <h2>How does it use LLMs?</h2>
+                <p>
+                    This app makes use of models that are chosen by the user themselves. The user can choose to use a model that is hosted on their own machine, or a model that is hosted on a remote server. The app will then use the chosen model to generate text based on the user's input.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="lower-left">
+        <button class="belowbuttons" onclick="location.href='/'">Back to Homepage</button>
+    </div>
+</body>
+</html>

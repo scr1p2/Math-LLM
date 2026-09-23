@@ -1,20 +1,30 @@
 {% load static %}
 
 <!doctype html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <title>MathLLM Homepage</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/features.css' %}">
     <link rel="stylesheet" type="text/css" href="{% static 'mainapp/homepage.css' %}">
-    <body>
-        <div class = "mainsection">
-            <div class = "title">
-                <h1>MathLLM</h1>
-            </div>
-            <div class = "buttons"> 
-                <button class = "solverbutton" onclick="location.href='/solver'">Go to Solver</button>
-                <button class = "generatorbutton" onclick="location.href='/generator'">Go to Problem Generator</button>
-            </div>
-            </div>
-        </div>
-    </body>
 </head>
+<body>
+    <div class="mainsection">
+        <div class="title">
+            <h1>MathLLM</h1>
+        </div>
+        <div class="buttons">
+            <button class="solverbutton" onclick="location.href='/solver'">Go to Solver</button>
+            <button class="generatorbutton" onclick="location.href='/generator'">Go to Problem Generator</button>
+        </div>
+    </div>
+
+    <div class="lower-left">
+        <button class="belowbuttons" onclick="location.href='/about'">About</button>
+    </div>
+
+    <div class="lower-right">
+        <button class="belowbuttons" onclick="location.href='/llms'">LLMs to Use</button>
+    </div>
+</body>
+</html>

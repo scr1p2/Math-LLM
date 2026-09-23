@@ -9,12 +9,21 @@ def homepage(request):
     return render(request, 'mainapp/homepage.html')
 
 
+def about(request):
+    return render(request, 'mainapp/about.html')
+
+
+def llms(request):
+    return render(request, 'mainapp/llms.html')
+
+
 def generator(request):
     return render(request, 'mainapp/generator.html')
 
 
 def solver(request):
     if request.method == "POST":
+
         uploaded_file = request.FILES.get('fileInput')
 
         if uploaded_file is None:

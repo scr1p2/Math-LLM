@@ -1,0 +1,36 @@
+{% load static %}
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>About MathLLM</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/features.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/about.css' %}">
+</head>
+<body>
+    <div class="mainsection">
+        <div class="title">
+            <h1>About</h1>
+        </div>
+
+        <div class="description">
+            <p>
+                <strong>MathLLM</strong> is a small educational app for solving and generating mathematical problems using local and cloud-based language models.
+                The goal is to make math support more accessible by combining image-based input, reasoning, and clear explanations in one place.
+            </p>
+        </div>
+
+        <div class="description">
+            <p>
+                MathLLM allows the users to use what are known as Large Language Models, which are AI models that can understand and generate human-like text. These models can be used to solve math problems, generate new problems, and provide explanations for solutions.
+                Once you go back to the homepage click on the LLMs to Use button to learn more about how the app uses LLMs and which models are supported.
+            </p>
+        </div>
+    </div>
+
+    <div class="lower-left">
+        <button class="belowbuttons" onclick="location.href='/'">Back to Homepage</button>
+    </div>
+</body>
+</html>

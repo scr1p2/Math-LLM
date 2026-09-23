@@ -1,40 +1,98 @@
 {% load static %}
 
 <!doctype html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <title>Solver</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/features.css' %}">
     <link rel="stylesheet" type="text/css" href="{% static 'mainapp/solver.css' %}">
-    <body>
-        <div class = "mainsection">
-            <div class = "title">
-                <h1>Solver</h1>
-            </div>
-            <div class = "inputbox">
-                <div class = "description">
+</head>
+<body>
+    <div class="mainsection">
+        <div class="title">
+            <h1>Solver</h1>
+        </div>
+        <div class="inputbox">
+            <div id="solver-form-panel">
+                <div class="description">
                     <p>Enter your problem below:</p>
                 </div>
-                <form method="post" enctype="multipart/form-data">
+                <form id="solver-form" method="post" enctype="multipart/form-data">
                     {% csrf_token %}
-                    <div class = "box">
+                    <div class="box">
                         <label for="fileInput">Upload a file:</label>
                         <input type="file" id="fileInput" name="fileInput" required>
                     </div>
-                    <div class = "box">
+                    <div class="box">
                         <p>
-                            Aattach an image file containing the problem that needs to be solved. 
-                            It can be from a textbook, a handwritten note, or any other source. The system will then use solve it through the language model you used 
-                            and list out the mathematical concepts and techniques you need to take note of. 
+                            Aattach an image file containing the problem that needs to be solved.
+                            It can be from a textbook, a handwritten note, or any other source. The system will then use solve it through the language model you used
+                            and list out the mathematical concepts and techniques you need to take note of.
                         </p>
                     </div>
-                    <div class = "submit">
-                        <button type="submit" class = "submitbutton">Submit</button>
+                    <div class="submit">
+                        <button type="submit" class="submitbutton">Submit</button>
                     </div>
                 </form>
             </div>
-            <div class = "buttons"> 
-                <button class = "backbutton" onclick="location.href='/'">Back to Homepage</button>
+
+            <div id="loading-screen" class="loading-screen hidden" aria-live="polite">
+                <div class="spinner"></div>
+                <h2>Working on your problem...</h2>
+                <p>Please wait while the LLM responds.</p>
+            </div>
+
+            <div id="result-panel" class="result-panel hidden" aria-live="polite">
+                <h3>LLM response</h3>
+                <pre id="result-text"></pre>
             </div>
         </div>
-    </body>
-</head>
+    </div>
+
+    <div class="lower-left">
+        <button class="belowbuttons" onclick="location.href='/'">Back to Homepage</button>
+    </div>
+
+    <script>
+        const form = document.getElementById('solver-form');
+        const formPanel = document.getElementById('solver-form-panel');
+        const loadingScreen = document.getElementById('loading-screen');
+        const resultPanel = document.getElementById('result-panel');
+        const resultText = document.getElementById('result-text');
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        form.addEventListener('submit', async function (event) {
+            event.preventDefault();
+
+            formPanel.classList.add('hidden');
+            resultPanel.classList.add('hidden');
+            loadingScreen.classList.remove('hidden');
+
+            try {
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Something went wrong.');
+                }
+
+                resultText.textContent = data.text || data.message || 'No readable text detected.';
+                loadingScreen.classList.add('hidden');
+                resultPanel.classList.remove('hidden');
+            } catch (error) {
+                loadingScreen.classList.add('hidden');
+                formPanel.classList.remove('hidden');
+                alert(error.message);
+            }
+        });
+    </script>
+</body>
+</html>

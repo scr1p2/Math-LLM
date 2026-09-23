@@ -1,11 +1,12 @@
-@import "general.css"; 
+@import "general.css";
 @import "features.css";
 
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
-.solverbutton, .generatorbutton {
+.solverbutton,
+.generatorbutton {
   background-color: var(--panel);
   color: var(--ink);
   backdrop-filter: blur(12px);
@@ -35,8 +36,8 @@
   color: var(--generator);
 }
 
-/* Hover Effect (When mouse moves over the button) */
-.solverbutton:hover, .generatorbutton:hover {
+.solverbutton:hover,
+.generatorbutton:hover {
   transform: translateY(-4px);
   box-shadow: 0 20px 38px rgba(0, 0, 0, 0.3);
 }
@@ -49,13 +50,14 @@
   background-color: rgba(226, 166, 111, 0.12);
 }
 
-.solverbutton:focus-visible, .generatorbutton:focus-visible {
+.solverbutton:focus-visible,
+.generatorbutton:focus-visible {
   outline: 3px solid var(--ink);
   outline-offset: 4px;
 }
 
-/* Active Effect (When the button is clicked) */
-.solverbutton:active, .generatorbutton:active {
+.solverbutton:active,
+.generatorbutton:active {
   transform: translateY(-1px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }

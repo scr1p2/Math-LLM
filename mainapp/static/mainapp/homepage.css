@@ -1,6 +1,3 @@
-@import "general.css";
-@import "features.css";
-
 *, *::before, *::after {
   box-sizing: border-box;
 }

@@ -1,6 +1,3 @@
-@import "general.css";
-@import "features.css";
-
 /* Solver page layout and form styling */
 .inputbox {
   width: min(920px, 100%);
@@ -148,6 +145,14 @@
   word-break: break-word;
   color: var(--ink);
   font-family: inherit;
+}
+
+.pdf-viewer {
+  width: 100%;
+  min-height: 720px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
 }
 
 @keyframes spin {

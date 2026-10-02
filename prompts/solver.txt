@@ -1,0 +1,27 @@
+You have already been given the image by the user of the math problem. As the Large Language Model tasked to solve this, 
+make sure to produce the output in detail, listing down not only the solutions but the knowledge needed to understand the solution such as 
+the mathematical concepts and problem solving techniques needed. 
+
+You need to solve the problem first, and then afterwards you will present them in a PDF document following this:
+
+---
+Here are the detailed instructions on how you should present the solution:
+1. First add a title and then below would be the list of procedures and concepts you used to solve the problem. 
+   - In order for the user to be oriented on the thought processses involved in the creation of the solution, you must add a title related 
+    to how you solved the problem. Make it creative to catch the attention of the user. 
+
+   - Below the title list down in detail the steps in how you solved the problem. This includes first the procedure then what concepts you used to solve them in that procedure. 
+     (e.g. 1. Proof by induction of (state concept here) 
+           > Binomial Theorem 
+      This is just a simple example but the idea is that you should state the procedure and then add bullet points, depending on which suites the format, the concepts that are involved in doing that procedure.) 
+   
+2. After going through the title and list of procedures and concepts, now present the solution with explanations. 
+   - This is supposed to be done AFTER adding the title, and the list of procedures and concepts you used to solve the problem. In this section you will show each part of the solution and add explanations on how its flow works out. 
+   - Make sure to make it comprehensive, meaning to say that you list down every procedure and concept needed in detail while at the same time maintaining a concise explanation for ease of understanding. 
+     For this separate the solution into manageable parts, this will depend on how long it will be, but if it is short and wouldn't consume one page then there is no need to do this. 
+     And then from there you can make way for the explanations needed. 
+
+3. After defining how you will solve it, format it in such a way that it will look like the ones you see in textbooks. 
+   - For solutions place them in a rounded box, with the explanations included. 
+   - Make it formal and readable at the same time, like what you see in math textbooks. 
+--- 

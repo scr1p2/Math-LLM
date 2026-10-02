@@ -1,10 +1,11 @@
-from django.http import JsonResponse
+import asyncio
+
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 
-from utility_scripts.image_partitioning import process_single_image_with_ollama
+from utility_scripts.solver import generate_pdf_bytes, process_image, solve
 
 
-# Create your views here.
 def homepage(request):
     return render(request, 'mainapp/homepage.html')
 
@@ -21,26 +22,31 @@ def generator(request):
     return render(request, 'mainapp/generator.html')
 
 
-def solver(request):
+async def solver(request):
     if request.method == "POST":
-
-        uploaded_file = request.FILES.get('fileInput')
-
-        if uploaded_file is None:
-            return JsonResponse({"error": "No file uploaded."}, status=400)
-
         try:
-            extracted_text = process_single_image_with_ollama(uploaded_file)
+            action = request.POST.get("action")
 
-            if not extracted_text:
-                return JsonResponse(
-                    {"text": "", "message": "No readable text detected in the image."},
-                    status=200,
-                )
+            if action == "solve":
+                problem = request.POST.get("problem", "").strip()
+                if not problem:
+                    return JsonResponse({"error": "No transcribed problem was provided."}, status=400)
+            else:
+                uploaded_file = request.FILES.get('fileInput')
+                if uploaded_file is None:
+                    return JsonResponse({"error": "Please upload an image before submitting."}, status=400)
 
-            print(extracted_text)
+                problem = await asyncio.to_thread(process_image, uploaded_file)
+                if action == "read":
+                    return JsonResponse({"problem": problem})
 
-            return JsonResponse({"text": extracted_text}, status=200)
+            solution = await asyncio.to_thread(solve, problem)
+            pdf_bytes = generate_pdf_bytes(solution)
+
+            response = HttpResponse(pdf_bytes, content_type="application/pdf")
+            response["Content-Disposition"] = 'inline; filename="solution.pdf"'
+            return response
+
         except Exception as exc:
             return JsonResponse({"error": str(exc)}, status=500)
 

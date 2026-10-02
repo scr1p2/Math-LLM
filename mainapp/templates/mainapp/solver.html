@@ -18,7 +18,7 @@
                 <div class="description">
                     <p>Enter your problem below:</p>
                 </div>
-                <form id="solver-form" method="post" enctype="multipart/form-data">
+                <form id="solver-form" method="post" action="{% url 'solver' %}" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="box">
                         <label for="fileInput">Upload a file:</label>
@@ -39,13 +39,14 @@
 
             <div id="loading-screen" class="loading-screen hidden" aria-live="polite">
                 <div class="spinner"></div>
-                <h2>Working on your problem...</h2>
-                <p>Please wait while the LLM responds.</p>
+                <h2 id="loading-title">Reading the image...</h2>
+                <p id="loading-message">We are extracting the math problem from your image.</p>
             </div>
 
             <div id="result-panel" class="result-panel hidden" aria-live="polite">
-                <h3>LLM response</h3>
+                <h3 id="result-title">LLM response</h3>
                 <pre id="result-text"></pre>
+                <iframe id="pdf-viewer" class="pdf-viewer hidden" title="Solved PDF output"></iframe>
             </div>
         </div>
     </div>
@@ -54,45 +55,6 @@
         <button class="belowbuttons" onclick="location.href='/'">Back to Homepage</button>
     </div>
 
-    <script>
-        const form = document.getElementById('solver-form');
-        const formPanel = document.getElementById('solver-form-panel');
-        const loadingScreen = document.getElementById('loading-screen');
-        const resultPanel = document.getElementById('result-panel');
-        const resultText = document.getElementById('result-text');
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
-        form.addEventListener('submit', async function (event) {
-            event.preventDefault();
-
-            formPanel.classList.add('hidden');
-            resultPanel.classList.add('hidden');
-            loadingScreen.classList.remove('hidden');
-
-            try {
-                const response = await fetch(window.location.href, {
-                    method: 'POST',
-                    body: new FormData(form),
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                    }
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || 'Something went wrong.');
-                }
-
-                resultText.textContent = data.text || data.message || 'No readable text detected.';
-                loadingScreen.classList.add('hidden');
-                resultPanel.classList.remove('hidden');
-            } catch (error) {
-                loadingScreen.classList.add('hidden');
-                formPanel.classList.remove('hidden');
-                alert(error.message);
-            }
-        });
-    </script>
+    <script src="{% static 'mainapp/js/solver.js' %}"></script>
 </body>
 </html>

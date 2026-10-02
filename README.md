@@ -1,6 +1,8 @@
 # MathLLM
 
-An AI-powered mathematics assistant built with Django to help users generate, solve, and explore math problems with the support of AI agents.
+### An AI-powered mathematics assistant built with Django to help users generate, solve, and explore math problems with the support of AI agents.
+
+![Homepage screenshot](docs/images/homepage.png)
 
 ## Table of Contents
 
@@ -34,30 +36,6 @@ This project is ideal for:
 - Clean, responsive web design
 - Django-based backend architecture
 - Custom prompts for math-related tasks
-
-## Screenshots
-
-> Add your website screenshots in the folder `docs/images/` and update the image paths below.
-
-### Homepage
-
-![Homepage screenshot](docs/images/homepage.png)
-
-### Problem Generator
-
-![Problem generator screenshot](docs/images/generator.png)
-
-### Solver Page
-
-![Solver screenshot](docs/images/solver.png)
-
-### About / Additional Page
-
-![About page screenshot](docs/images/about.png)
-
-### Optional: Dashboard or Feature Overview
-
-![Feature overview screenshot](docs/images/features.png)
 
 ## Tech Stack
 

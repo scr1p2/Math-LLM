@@ -4,19 +4,6 @@
 
 ![Homepage screenshot](docs/images/homepage.png)
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Screenshots](#screenshots)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Installation](#installation)
-- [Running the App](#running-the-app)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
-
 ## Overview
 
 MathLLM is a web application designed to assist students and math enthusiasts with AI-driven problem generation and solving. The app combines a Django backend with an interactive frontend to provide an easy-to-use experience for generating practice questions, solving math problems, and exploring AI-assisted learning tools.

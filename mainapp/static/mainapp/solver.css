@@ -1,4 +1,5 @@
 /* Solver page layout and form styling */
+/* Keep upload, progress, and result states inside one responsive panel. */
 .inputbox {
   width: min(920px, 100%);
   min-height: 360px;
@@ -12,6 +13,7 @@
   backdrop-filter: blur(12px);
 }
 
+/* Align the file-upload label and input inside a contrasting field row. */
 .box {
   display: flex;
   align-items: center;
@@ -35,6 +37,7 @@
   font: inherit;
 }
 
+/* Style the browser's native file picker to match the site theme. */
 .box input[type="file"]::file-selector-button {
   margin-right: 10px;
   padding: 8px 14px;
@@ -50,6 +53,7 @@
   background-color: var(--ink);
 }
 
+/* Center the submission action and its button within the form. */
 .submit {
   display: flex;
   justify-content: center;
@@ -86,6 +90,7 @@
   outline-offset: 4px;
 }
 
+/* JavaScript toggles these classes when switching between form, loading, and result views. */
 .hidden {
   display: none;
 }
@@ -95,6 +100,7 @@
   display: none;
 }
 
+/* Center progress feedback while the uploaded problem is processed. */
 .loading-screen {
   display: flex;
   flex-direction: column;
@@ -105,6 +111,7 @@
   color: var(--ink);
 }
 
+/* Show ongoing work with an animated circular progress indicator. */
 .spinner {
   width: 54px;
   height: 54px;
@@ -126,6 +133,7 @@
   font-size: 1.1rem;
 }
 
+/* Separate generated text or PDF output from the input controls. */
 .result-panel {
   margin-top: 20px;
   padding: 18px;
@@ -147,6 +155,7 @@
   font-family: inherit;
 }
 
+/* Give the embedded PDF a large, readable viewport in the result panel. */
 .pdf-viewer {
   width: 100%;
   min-height: 720px;
@@ -155,6 +164,7 @@
   background: #ffffff;
 }
 
+/* Rotate the spinner's highlighted edge continuously. */
 @keyframes spin {
   to {
     transform: rotate(360deg);

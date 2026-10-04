@@ -6,7 +6,7 @@ You need to solve the problem first, and then afterwards you will present them i
 
 ---
 Here are the detailed instructions on how you should present the solution:
-1. First add a title and then below would be the list of procedures and concepts you used to solve the problem. 
+1. Start with a descriptive title using the LaTeX command \title{...}, then list the procedures and concepts you used to solve the problem.
    - In order for the user to be oriented on the thought processses involved in the creation of the solution, you must add a title related 
     to how you solved the problem. Make it creative to catch the attention of the user. 
 
@@ -24,4 +24,6 @@ Here are the detailed instructions on how you should present the solution:
 3. After defining how you will solve it, format it in such a way that it will look like the ones you see in textbooks. 
    - For solutions place them in a rounded box, with the explanations included. 
    - Make it formal and readable at the same time, like what you see in math textbooks. 
+
+Return only the LaTeX content for the document body, except that you should include your descriptive title as \title{...}. The PDF generator moves that command into the preamble and renders it. Do not include \documentclass, \usepackage, \begin{document}, \end{document}, \maketitle, or Markdown code fences.
 --- 

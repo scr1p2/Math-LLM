@@ -1,3 +1,4 @@
+/* Arrange page content vertically and center it within the shared layout. */
 .mainsection {
     display: flex;
     flex-direction: column;
@@ -6,6 +7,7 @@
     gap: 32px;
 }
 
+/* Present supporting information in a readable, bounded panel. */
 .description {
     max-width: 760px; 
     width: min(100%, 760px); 
@@ -16,6 +18,7 @@
     box-shadow: 0 18px 44px rgba(0, 0, 0, 0.25);
 }
 
+/* Preserve comfortable line spacing and contrast in the information panel. */
 .description p {
     font-size: 1.1rem;
     line-height: 1.7;

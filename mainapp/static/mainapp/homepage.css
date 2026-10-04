@@ -1,7 +1,9 @@
+/* Keep box dimensions predictable when the homepage buttons resize. */
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
+/* Give the two primary navigation actions consistent size, spacing, and focus states. */
 .solverbutton,
 .generatorbutton {
   background-color: var(--panel);
@@ -23,6 +25,7 @@
   transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
 }
 
+/* Use the shared solver and generator colors to distinguish each destination. */
 .solverbutton {
   border-color: rgba(142, 199, 192, 0.55);
   color: var(--solver);
@@ -33,6 +36,7 @@
   color: var(--generator);
 }
 
+/* Lift primary actions on hover and provide pressed and keyboard-focus feedback. */
 .solverbutton:hover,
 .generatorbutton:hover {
   transform: translateY(-4px);
@@ -58,4 +62,3 @@
   transform: translateY(-1px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
-

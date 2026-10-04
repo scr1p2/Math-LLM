@@ -1,4 +1,5 @@
 /* Shared action buttons and lower-page controls */
+/* Center page-level actions and anchor utility buttons to the viewport corners. */
 .buttons {
   display: flex;
   justify-content: center;
@@ -38,6 +39,7 @@
   transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
 }
 
+/* Keep shared controls visibly interactive and keyboard-accessible. */
 .belowbuttons:hover {
   background-color: var(--panel-hover);
   border-color: var(--ink);
@@ -56,6 +58,37 @@
 }
 
 /* Global theme and shared layout */
+/* Provide native smooth scrolling and matching scrollbar colors across engines. */
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+* {
+  scrollbar-color: #8ec7c0 #252d38;
+  scrollbar-width: auto;
+}
+
+*::-webkit-scrollbar {
+  width: 14px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #252d38;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #a5e5dc, #52a99f);
+  border: 3px solid #252d38;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #d0fff7, #74d1c5);
+}
+
+/* Define reusable colors and the full-page background used by feature pages. */
 body {
   --ink: #f4f0e8;
   --muted: #a8adb8;
@@ -81,6 +114,7 @@ body {
   overflow-x: hidden;
 }
 
+/* Let action groups wrap on narrow screens while remaining centered. */
 .buttons {
   display: flex;
   flex-wrap: wrap;
@@ -90,6 +124,7 @@ body {
   text-align: center;
 }
 
+/* Establish the shared display heading style and entrance animation. */
 .title {
   font-family: Georgia, 'Times New Roman', serif;
   font-size: clamp(3.5rem, 10vw, 7rem);
@@ -102,6 +137,7 @@ body {
   animation: rise-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* Center page content while allowing tall pages to scroll naturally. */
 .mainsection {
   display: flex;
   flex-direction: column;
@@ -119,6 +155,7 @@ body {
   margin: 0;
 }
 
+/* Subtle page and heading entrances; reduced-motion users skip these effects below. */
 @keyframes page-in {
   from {
     opacity: 0;

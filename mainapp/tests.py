@@ -65,6 +65,21 @@ class PdfGenerationTests(SimpleTestCase):
         self.assertTrue(pdf_bytes.startswith(b"%PDF"))
         self.assertGreater(len(pdf_bytes), 100)
 
+    def test_generate_pdf_bytes_supports_solutions_without_an_author(self):
+        generated_tex = []
+
+        def capture_generated_tex(tex_path):
+            generated_tex.append(tex_path.read_text(encoding="utf-8"))
+            return b"%PDF"
+
+        with patch(
+            "utility_scripts.solver._compile_pdf",
+            side_effect=capture_generated_tex,
+        ):
+            generate_pdf_bytes(r"\textbf{Test}")
+
+        self.assertIn(r"\author{}", generated_tex[0])
+
     def test_generate_pdf_bytes_rejects_empty_normalized_body(self):
         with self.assertRaisesRegex(
             ValueError,

@@ -1,3 +1,5 @@
+"""Named URL routes for pages and actions owned by the main application."""
+
 from django.urls import path 
 
 from . import views 

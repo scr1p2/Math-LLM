@@ -19,5 +19,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # Mount the main application's routes at the site root, including /solver/.
     path('', include('mainapp.urls'))
 ]

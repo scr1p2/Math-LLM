@@ -1,3 +1,5 @@
+"""Image transcription, math solving, and LaTeX-to-PDF helpers for the solver."""
+
 import asyncio
 import base64
 import re
@@ -9,23 +11,34 @@ from typing import Any
 
 from ollama import Client
 
-# Supported multimodal models for extracting text from uploaded images.
+# Models tried in order when an uploaded image must be transcribed.
 VISION_MODELS = ["qwen2.5vl"]
-# Default language model used to solve the transcribed math problem.
+# Model used to produce the written, step-by-step math solution.
 TEXT_MODEL = "deepseek-r1:latest"
+# Bound external LaTeX compilation so a request cannot wait indefinitely.
 PDFLATEX_TIMEOUT_SECONDS = 120
 
 
 @lru_cache(maxsize=1)
 def read_prompt() -> str:
-    """Load and cache the system prompt used to instruct the solver model."""
+    """Read the solver's reusable instructions once per process.
+
+    The prompt is stored outside Python source so solution-writing guidance can
+    be updated independently. The one-entry cache avoids disk reads for each
+    model request.
+    """
     prompt_path = Path(__file__).resolve().parent.parent / "prompts" / "solver.txt"
     with prompt_path.open("r", encoding="utf-8") as f:
         return f.read()
 
 
 def ensure_image_bytes(image: Any) -> bytes:
-    """Return raw bytes from a file path, file-like object, or raw byte payload."""
+    """Normalize supported image inputs to bytes for the vision model.
+
+    Accepts raw bytes, bytearrays, readable upload/file objects, and file paths.
+    Unsupported values fail explicitly rather than being sent to the model in
+    an ambiguous format.
+    """
     if image is None:
         raise ValueError("image cannot be None")
 
@@ -44,11 +57,17 @@ def ensure_image_bytes(image: Any) -> bytes:
 
 
 def _compile_pdf(tex_path: Path) -> bytes:
-    """Compile a TeX file from its containing directory and return the PDF bytes."""
+    """Run pdflatex beside its input file and return the generated PDF bytes.
+
+    Using the temporary directory as the working directory keeps auxiliary
+    files next to the source and passing only the filename handles paths with
+    spaces consistently. Compiler errors and timeouts are surfaced to callers.
+    """
     try:
         completed = subprocess.run(
             [
                 "pdflatex",
+                # Keep compiler output non-interactive and stop at the first error.
                 "-interaction=nonstopmode",
                 "-halt-on-error",
                 tex_path.name,
@@ -67,6 +86,7 @@ def _compile_pdf(tex_path: Path) -> bytes:
         ) from exc
 
     if completed.returncode != 0:
+        # Include both output streams because TeX diagnostics can appear in either.
         error_output = "\n".join(
             stream.strip()
             for stream in (completed.stdout, completed.stderr)
@@ -83,7 +103,12 @@ def _compile_pdf(tex_path: Path) -> bytes:
 
 
 def _solution_document_body(solution_latex: str) -> str:
-    """Remove document wrappers and preamble commands from generated LaTeX."""
+    """Strip model-added wrappers so the content fits our generated document.
+
+    The solver prompt asks for body-only LaTeX, but this normalization also
+    accepts common deviations such as Markdown fences, a document environment,
+    a document class, or package imports.
+    """
     solution_latex = re.sub(
         r"```(?:latex|tex)?\s*|\s*```",
         "",
@@ -95,6 +120,7 @@ def _solution_document_body(solution_latex: str) -> str:
         solution_latex,
     )
     if document_start:
+        # When wrappers are present, keep only the text between them.
         solution_latex = solution_latex[document_start.end():]
         document_end = re.search(
             r"\\end\s*\{\s*document\s*\}",
@@ -117,7 +143,12 @@ def _solution_document_body(solution_latex: str) -> str:
 
 
 def _extract_latex_title(solution_latex: str) -> tuple[str | None, str]:
-    """Extract the first balanced LaTeX title command from generated content."""
+    """Return the first title and the remaining solution content.
+
+    A character-by-character scan is used instead of a simple brace regex so
+    titles containing nested groups remain intact. Backslash-escaped characters
+    are skipped while locating the matching closing brace.
+    """
     title_command = re.search(r"\\title\s*\{", solution_latex)
     if title_command is None:
         return None, solution_latex
@@ -144,7 +175,13 @@ def _extract_latex_title(solution_latex: str) -> tuple[str | None, str]:
 
 
 def generate_pdf_bytes(solution_latex: str) -> bytes:
-    """Compile a LaTeX solution in an isolated temporary directory and return its PDF bytes."""
+    """Wrap a generated LaTeX solution in a complete document and compile it.
+
+    The title is removed from the body and placed in the preamble; if absent or
+    empty, a generic title is supplied. The author is explicitly empty because
+    solutions do not have an author field. The temporary directory is removed
+    automatically after the PDF bytes have been read.
+    """
     if not solution_latex:
         raise ValueError("No solution content was provided to generate a PDF.")
 
@@ -154,12 +191,15 @@ def generate_pdf_bytes(solution_latex: str) -> bytes:
     if not solution_body:
         raise ValueError("The solution contains no LaTeX document body to render.")
 
+    # Build a controlled preamble so model-generated package/class declarations
+    # cannot conflict with the document structure maintained by this module.
     document = "\n".join(
         (
             r"\documentclass{article}",
             r"\usepackage[margin=1in]{geometry}",
             r"\usepackage{amsmath,amssymb}",
             r"\title{" + title + "}",
+            r"\author{}",
             r"\begin{document}",
             r"\maketitle",
             solution_body,
@@ -174,8 +214,13 @@ def generate_pdf_bytes(solution_latex: str) -> bytes:
 
 
 def process_image(image: Any) -> str:
-    """Extract the problem statement from an uploaded image using the vision-capable model."""
-    # Convert the uploaded image into base64 so Ollama can accept it as a multimodal payload.
+    """Ask the configured vision model to transcribe an uploaded math problem.
+
+    Ollama's chat API expects image content as base64. Candidate models are
+    retried only for errors indicating image-input incompatibility; unrelated
+    service/model errors are raised immediately.
+    """
+    # Convert file or upload input to the base64 image payload Ollama expects.
     img_b64 = base64.b64encode(ensure_image_bytes(image)).decode()
     client = Client()
     last_error = None
@@ -198,7 +243,7 @@ def process_image(image: Any) -> str:
         except Exception as exc:
             last_error = exc
             message = str(exc).lower()
-            # Skip models that do not support image input and continue to the next candidate.
+            # Only compatibility failures justify trying another vision model.
             if "image input is not supported" in message or "mmproj" in message or "not supported" in message:
                 continue
             raise
@@ -211,7 +256,12 @@ def process_image(image: Any) -> str:
 
 
 def solve(problem_text: str) -> str:
-    """Use the text model to generate a LaTeX-formatted step-by-step solution."""
+    """Generate a detailed LaTeX solution for a transcribed math problem.
+
+    The model receives both the problem and the repository's presentation
+    instructions, and is asked to return body content rather than a full TeX
+    document; PDF generation owns the document wrapper and compilation.
+    """
     client = Client()
     resp = client.chat(
         model=TEXT_MODEL,
@@ -224,6 +274,10 @@ def solve(problem_text: str) -> str:
 
 
 async def solve_problem_to_pdf(problem_text: str) -> bytes:
-    """Generate a PDF solution without blocking the async caller."""
+    """Run the solve-then-render pipeline without blocking the event loop.
+
+    Both model inference and subprocess-based PDF compilation are synchronous
+    operations, so each is moved to a worker thread before awaiting its result.
+    """
     solution = await asyncio.to_thread(solve, problem_text)
     return await asyncio.to_thread(generate_pdf_bytes, solution)

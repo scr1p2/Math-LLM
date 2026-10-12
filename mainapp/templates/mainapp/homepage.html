@@ -1,14 +1,15 @@
+{% extends "mainapp/base.html" %}
 {% load static %}
 
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title>MathLLM Homepage</title>
-    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/features.css' %}">
+{% block title %}MathLLM Homepage{% endblock %}
+
+{% block page_styles %}
     <link rel="stylesheet" type="text/css" href="{% static 'mainapp/homepage.css' %}">
-</head>
-<body>
+{% endblock %}
+
+{% block page_content %}
+    {% include "mainapp/partials/theme_switcher.html" %}
+
     <div class="mainsection">
         <div class="title">
             <h1>MathLLM</h1>
@@ -26,5 +27,4 @@
     <div class="lower-right">
         <button class="belowbuttons" onclick="location.href='/llms'">LLMs to Use</button>
     </div>
-</body>
-</html>
+{% endblock %}

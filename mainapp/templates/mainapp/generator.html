@@ -1,27 +1,31 @@
+{% extends "mainapp/base.html" %}
 {% load static %}
 
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title>Problem Generator</title>
-    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/features.css' %}">
-</head>
-<body>
+{% block title %}Problem Generator{% endblock %}
+{% block body_attributes %} class="theme-dark"{% endblock %}
+
+{% block page_styles %}
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/pages.css' %}">
+{% endblock %}
+
+{% block page_content %}
     <div class="mainsection">
-        <div class="title">
-            <h1>Generator</h1>
+        <div class="page-header feature-page-header">
+            <div class="title">
+                <h1>Generator</h1>
+            </div>
+
+            {% include "mainapp/partials/theme_switcher.html" %}
         </div>
-        <div class="lower-left">
-            <button class="belowbuttons" onclick="location.href='/'">Back to Homepage</button>
-        </div>
-        <div class = "box">
-            <p>
-                This is the problem generator page. You can use this page to generate math problems based on your preferences.
-                You can select the topic, difficulty level, and number of problems you want to generate. The system will then generate
-                a set of problems for you to practice on. (Under development)
-            </p>
+
+        <div class="inputbox feature-card">
+            <div class="box feature-field">
+                <p>This page is still in development.</p>
+            </div>
         </div>
     </div>
-</body>
-</html>
+
+    <div class="lower-left">
+        <button class="belowbuttons" onclick="location.href='/'">Back to Homepage</button>
+    </div>
+{% endblock %}

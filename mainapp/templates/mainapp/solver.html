@@ -1,52 +1,75 @@
+{% extends "mainapp/base.html" %}
 {% load static %}
 
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title>Solver</title>
-    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/features.css' %}">
-    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/solver.css' %}">
-</head>
-<body>
+{% block title %}Solver{% endblock %}
+{% block body_attributes %} class="theme-dark"{% endblock %}
+
+{% block page_styles %}
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/pages.css' %}">
+{% endblock %}
+
+{% block page_content %}
     <div class="mainsection">
-        <div class="title">
-            <h1>Solver</h1>
+        <div class="page-header feature-page-header">
+            <div class="title">
+                <h1>Solver</h1>
+            </div>
+
+            {% include "mainapp/partials/theme_switcher.html" %}
         </div>
-        <div class="inputbox">
-            <div id="solver-form-panel">
+
+        <div class="inputbox feature-card">
+            <div id="feature-form-panel" class="feature-form-panel">
                 <div class="description">
                     <p>Enter your problem below:</p>
                 </div>
                 <form id="solver-form" method="post" action="{% url 'solver' %}" enctype="multipart/form-data">
                     {% csrf_token %}
-                    <div class="box">
+                    <div class="box feature-field">
                         <label for="fileInput">Upload a file:</label>
                         <input type="file" id="fileInput" name="fileInput" required>
                     </div>
-                    <div class="box">
+                    <div class="box feature-field">
                         <p>
                             Attach an image file containing the problem that needs to be solved.
                             It can be from a textbook, a handwritten note, or any other source. The system will then use solve it through the language model you used
                             and list out the mathematical concepts and techniques you need to take note of.
                         </p>
                     </div>
-                    <div class="submit">
-                        <button type="submit" class="submitbutton">Submit</button>
+                    <div class="submit feature-submit">
+                        <button type="submit" class="submitbutton feature-submit-button">Submit</button>
                     </div>
                 </form>
             </div>
 
-            <div id="loading-screen" class="loading-screen hidden" aria-live="polite">
-                <div class="spinner"></div>
+            <div id="feature-error-banner" class="error-banner feature-error-banner hidden" role="alert" aria-live="assertive"></div>
+
+            <div id="feature-loading-screen" class="loading-screen feature-loading-screen hidden" aria-live="polite">
+                <div class="spinner feature-spinner"></div>
                 <h2 id="loading-title">Reading the image...</h2>
                 <p id="loading-message">We are extracting the math problem from your image.</p>
             </div>
 
-            <div id="result-panel" class="result-panel hidden" aria-live="polite">
+            <div id="feature-status-panel" class="status-panel feature-status-panel hidden" aria-live="polite">
+                <div class="status-header feature-status-header">
+                    <h3>LLM live status</h3>
+                    <span id="status-pill" class="status-pill feature-status-pill">Working</span>
+                </div>
+                <div id="status-log" class="status-log feature-status-log"></div>
+                <section id="image-output-panel" class="model-output-panel hidden" aria-live="polite">
+                    <h3>Image model output</h3>
+                    <pre id="image-output" class="model-output"></pre>
+                </section>
+                <section id="solution-output-panel" class="model-output-panel hidden" aria-live="polite">
+                    <h3>DeepSeek solution stream</h3>
+                    <pre id="solution-output" class="model-output"></pre>
+                </section>
+            </div>
+
+            <div id="feature-result-panel" class="result-panel feature-result-panel hidden" aria-live="polite">
                 <h3 id="result-title">LLM response</h3>
                 <pre id="result-text"></pre>
-                <iframe id="pdf-viewer" class="pdf-viewer hidden" title="Solved PDF output"></iframe>
+                <iframe id="feature-pdf-viewer" class="pdf-viewer feature-pdf-viewer hidden" title="Solved PDF output"></iframe>
             </div>
         </div>
     </div>
@@ -54,7 +77,8 @@
     <div class="lower-left">
         <button class="belowbuttons" onclick="location.href='/'">Back to Homepage</button>
     </div>
+{% endblock %}
 
+{% block page_scripts %}
     <script src="{% static 'mainapp/js/solver.js' %}"></script>
-</body>
-</html>
+{% endblock %}

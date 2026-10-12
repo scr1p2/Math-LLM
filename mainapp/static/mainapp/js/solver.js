@@ -1,17 +1,25 @@
 // Cache the form, endpoint, and page elements used throughout the solver workflow.
 const form = document.getElementById('solver-form');
-const solverEndpoint = form.action;
-const formPanel = document.getElementById('solver-form-panel');
-const loadingScreen = document.getElementById('loading-screen');
+const solverEndpoint = form ? form.action : '';
+const formPanel = document.getElementById('feature-form-panel') || document.getElementById('solver-form-panel');
+const loadingScreen = document.getElementById('feature-loading-screen') || document.getElementById('loading-screen');
 const loadingTitle = document.getElementById('loading-title');
 const loadingMessage = document.getElementById('loading-message');
-const resultPanel = document.getElementById('result-panel');
+const imageOutputPanel = document.getElementById('image-output-panel');
+const imageOutput = document.getElementById('image-output');
+const solutionOutputPanel = document.getElementById('solution-output-panel');
+const solutionOutput = document.getElementById('solution-output');
+const resultPanel = document.getElementById('feature-result-panel') || document.getElementById('result-panel');
 const resultText = document.getElementById('result-text');
 const resultTitle = document.getElementById('result-title');
-const pdfViewer = document.getElementById('pdf-viewer');
-const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+const pdfViewer = document.getElementById('feature-pdf-viewer') || document.getElementById('pdf-viewer');
+const statusPanel = document.getElementById('feature-status-panel') || document.getElementById('status-panel');
+const statusLog = document.getElementById('status-log');
+const statusPill = document.getElementById('status-pill');
+const errorBanner = document.getElementById('feature-error-banner') || document.getElementById('error-banner');
+const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+let progressEntry = null;
 
-// Keep progress messages aligned with the transcription, solving, and PDF stages.
 const loadingStates = {
     reading: {
         title: 'Reading the image...',
@@ -33,27 +41,97 @@ function setLoadingState(state) {
     loadingMessage.textContent = current.message;
 }
 
-// Reuse the CSS utility class to switch page elements between visible and hidden.
 function setHidden(element, isHidden) {
     element.classList.toggle('hidden', isHidden);
 }
 
-// Clear previous output before starting a new submission.
+function clearStatusLog() {
+    statusLog.innerHTML = '';
+    progressEntry = null;
+}
+
+function appendStatus(text) {
+    if (!text || !text.trim()) {
+        return;
+    }
+
+    createStatusEntry(text.trim());
+}
+
+function updateProgressStatus(text) {
+    if (!text) {
+        return;
+    }
+
+    if (!progressEntry) {
+        progressEntry = createStatusEntry(text, 'status-progress');
+    } else {
+        progressEntry.lastChild.textContent = ` ${text}`;
+    }
+    statusLog.scrollTop = statusLog.scrollHeight;
+    loadingMessage.textContent = text;
+}
+
+function createStatusEntry(label, className = '') {
+    const entry = document.createElement('div');
+    entry.className = `status-entry ${className}`.trim();
+    const timestamp = document.createElement('time');
+    const now = new Date();
+    timestamp.className = 'status-time';
+    timestamp.dateTime = now.toISOString();
+    timestamp.textContent = now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+    entry.append(timestamp, document.createTextNode(` ${label}`));
+    statusLog.appendChild(entry);
+    statusLog.scrollTop = statusLog.scrollHeight;
+    return entry;
+}
+
+function setStatusPill(label) {
+    statusPill.textContent = label;
+}
+
+function showStatusPanel() {
+    setHidden(statusPanel, false);
+}
+
+function hideStatusPanel() {
+    setHidden(statusPanel, true);
+}
+
+function hideErrorBanner() {
+    errorBanner.textContent = '';
+    setHidden(errorBanner, true);
+}
+
+function showErrorBanner(message) {
+    errorBanner.textContent = message;
+    setHidden(errorBanner, false);
+}
+
 function resetResultDisplay() {
     resultText.textContent = '';
     setHidden(resultText, false);
     setHidden(pdfViewer, true);
     pdfViewer.removeAttribute('src');
     resultTitle.textContent = 'LLM response';
+    clearStatusLog();
+    imageOutput.textContent = '';
+    solutionOutput.textContent = '';
+    setHidden(imageOutputPanel, true);
+    setHidden(solutionOutputPanel, true);
+    hideStatusPanel();
+    hideErrorBanner();
 }
 
-// Replace the progress view with the completed result panel.
 function showResult() {
     setHidden(loadingScreen, true);
     setHidden(resultPanel, false);
 }
 
-// Render text or an error and optionally return the user to the upload form.
 function showTextResult(title, text, restoreForm = false) {
     resultTitle.textContent = title;
     resultText.textContent = text;
@@ -61,10 +139,10 @@ function showTextResult(title, text, restoreForm = false) {
     setHidden(pdfViewer, true);
     pdfViewer.removeAttribute('src');
     setHidden(formPanel, !restoreForm);
+    showStatusPanel();
     showResult();
 }
 
-// Display a non-empty PDF response in the embedded viewer.
 function showPdfResult(blob) {
     if (!blob.size) {
         throw new Error('The solver returned an empty PDF.');
@@ -74,10 +152,10 @@ function showPdfResult(blob) {
     setHidden(pdfViewer, false);
     setHidden(resultText, true);
     resultTitle.textContent = 'Solution PDF';
+    showStatusPanel();
     showResult();
 }
 
-// Send a stage request to Django with the session's CSRF token.
 async function postFormData(formData) {
     return fetch(solverEndpoint, {
         method: 'POST',
@@ -88,20 +166,102 @@ async function postFormData(formData) {
     });
 }
 
-// Decode JSON responses and provide a readable fallback for plain-text errors.
-async function getResponseData(response, contentType) {
-    if (contentType.includes('application/json')) {
-        return response.json();
+async function streamTextResponse(
+    response,
+    onChunk,
+    onStatus = () => {},
+    onProgress = () => {},
+) {
+    if (!response.ok || !response.body) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'The live model response failed.');
     }
 
-    if (response.status >= 400) {
-        return { error: await response.text() };
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let text = '';
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+            break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const eventText of events) {
+            const line = eventText.trim();
+            if (!line.startsWith('data:')) {
+                continue;
+            }
+
+            const payload = JSON.parse(line.replace(/^data:\s*/, ''));
+            if (payload.type === 'error') {
+                throw new Error(payload.error || 'The model reported an error.');
+            }
+
+            if (payload.type === 'content') {
+                text += payload.text || '';
+                onChunk(payload.text || '');
+            } else if (payload.type === 'status') {
+                onStatus(payload.text || '');
+            } else if (payload.type === 'progress') {
+                onProgress(payload.text || '');
+            }
+        }
     }
 
-    return {};
+    if (buffer.trim().startsWith('data:')) {
+        const payload = JSON.parse(buffer.trim().replace(/^data:\s*/, ''));
+        if (payload.type === 'error') {
+            throw new Error(payload.error || 'The model reported an error.');
+        }
+        if (payload.type === 'content') {
+            text += payload.text || '';
+            onChunk(payload.text || '');
+        } else if (payload.type === 'status') {
+            onStatus(payload.text || '');
+        } else if (payload.type === 'progress') {
+            onProgress(payload.text || '');
+        }
+    }
+
+    return text;
 }
 
-// Run the upload workflow in order: transcribe the image, solve it, and request a PDF.
+async function readProblemWithStream(fileInput) {
+    const readFormData = new FormData(form);
+    readFormData.append('action', 'read');
+    readFormData.set('fileInput', fileInput);
+
+    imageOutput.textContent = '';
+    setHidden(imageOutputPanel, false);
+    const response = await postFormData(readFormData);
+    return streamTextResponse(response, (chunk) => {
+        imageOutput.textContent += chunk;
+        imageOutput.scrollTop = imageOutput.scrollHeight;
+    }, appendStatus);
+}
+
+async function solveProblemWithStream(problemText) {
+    const solveFormData = new FormData();
+    solveFormData.append('action', 'solve');
+    solveFormData.append('problem', problemText);
+
+    solutionOutput.textContent = '';
+    setHidden(solutionOutputPanel, false);
+    const response = await postFormData(solveFormData);
+
+    return streamTextResponse(response, (chunk) => {
+        solutionOutput.textContent += chunk;
+        solutionOutput.scrollTop = solutionOutput.scrollHeight;
+        loadingMessage.textContent = 'DeepSeek is streaming the solution.';
+    }, appendStatus, updateProgressStatus);
+}
+
 async function handleSubmit(event) {
     event.preventDefault();
 
@@ -110,41 +270,38 @@ async function handleSubmit(event) {
     setHidden(loadingScreen, false);
     resetResultDisplay();
     setLoadingState('reading');
+    showStatusPanel();
+    setStatusPill('Reading');
 
     try {
-        // Ask the server to extract the math problem from the selected image.
-        const readFormData = new FormData(form);
-        readFormData.append('action', 'read');
-        const readResponse = await postFormData(readFormData);
-
-        console.log('Read response status:', readResponse.status);
-
-        const readData = await readResponse.json();
-        if (!readResponse.ok) {
-            throw new Error(readData.error || 'Could not read the uploaded image.');
+        const fileInput = form.querySelector('#fileInput').files[0];
+        if (!fileInput) {
+            throw new Error('Please upload an image before submitting.');
         }
 
-        // Submit the transcription and wait for the step-by-step solution.
+        const readProblem = await readProblemWithStream(fileInput);
+        const trimmedProblem = (readProblem || '').trim();
+        if (!trimmedProblem) {
+            throw new Error('The image reader returned no problem text.');
+        }
+
         setLoadingState('solving');
-        const solveFormData = new FormData();
-        solveFormData.append('action', 'solve');
-        solveFormData.append('problem', readData.problem);
-        const solveResponse = await postFormData(solveFormData);
+        setStatusPill('Solving');
+        showStatusPanel();
+        const solution = await solveProblemWithStream(trimmedProblem);
 
-        console.log('Solve response status:', solveResponse.status);
-        const solveData = await solveResponse.json();
-        if (!solveResponse.ok) {
-            throw new Error(solveData.error || 'Could not solve the problem.');
+        if (!solution || !solution.trim()) {
+            throw new Error('The model returned an empty solution.');
         }
 
-        // Request a PDF and show it when the server returns a PDF response.
         setLoadingState('generatingPdf');
+        setStatusPill('PDF');
+        appendStatus('Formatting the final solution into a PDF document...');
+
         const pdfFormData = new FormData();
         pdfFormData.append('action', 'pdf');
-        pdfFormData.append('solution', solveData.solution);
+        pdfFormData.append('solution', solution.trim());
         const response = await postFormData(pdfFormData);
-
-        console.log('PDF response status:', response.status);
 
         const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
         const contentDisposition = (response.headers.get('Content-Disposition') || '').toLowerCase();
@@ -154,29 +311,29 @@ async function handleSubmit(event) {
             contentDisposition.includes('.pdf');
 
         if (isPdfResponse) {
+            setStatusPill('Complete');
             showPdfResult(await response.blob());
             return;
         }
 
-        // Display server errors or text output rather than assuming a PDF was returned.
-        const data = await getResponseData(response, contentType);
-
+        const data = await response.json();
         if (!response.ok) {
-            showTextResult('Error', data.error || 'Something went wrong.');
-            return;
+            throw new Error(data.error || 'Something went wrong while creating the PDF.');
         }
 
-        showTextResult(
-            'LLM response',
-            data.text || data.message || 'No readable text detected.',
-        );
+        setStatusPill('Complete');
+        showTextResult('LLM response', data.text || data.message || 'No readable text detected.');
     } catch (error) {
         const errorMessage = error instanceof TypeError
             ? 'Could not reach the solver server. Check that the Django server is running and try again.'
             : error.message || 'Something went wrong.';
-        showTextResult('Error', errorMessage, true);
+        showErrorBanner(errorMessage);
+        setHidden(formPanel, false);
+        setHidden(resultPanel, true);
+        setHidden(loadingScreen, true);
+        setStatusPill('Error');
+        showStatusPanel();
     }
 }
 
-// Intercept normal submission so each asynchronous stage can update the page.
 form.addEventListener('submit', handleSubmit);

@@ -1,0 +1,367 @@
+﻿/* Shared UI shell for feature pages */
+/* Keep feature pages visually consistent while staying reusable for future tools and views. */
+.page-header,
+.feature-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  width: min(920px, 100%);
+  margin-bottom: 12px;
+}
+
+.page-theme-switcher {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  margin-left: auto;
+  z-index: 20;
+}
+
+/* Shared feature card, form field, and submission patterns. */
+.feature-card,
+.inputbox {
+  width: min(920px, 100%);
+  min-height: 360px;
+  background-color: var(--panel);
+  border: 1px solid var(--line);
+  padding: clamp(22px, 4vw, 42px);
+  margin: 15px 0 28px;
+  box-sizing: border-box;
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(12px);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.feature-card:hover,
+.inputbox:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+}
+
+.feature-field,
+.box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background-color: rgba(9, 11, 15, 0.42);
+  margin-bottom: 20px;
+  font-size: clamp(1.2rem, 3vw, 1.8rem);
+  color: var(--ink);
+  transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+
+.feature-field:hover,
+.box:hover {
+  border-color: rgba(142, 199, 192, 0.45);
+  background-color: rgba(18, 22, 28, 0.72);
+  transform: translateY(-1px);
+}
+
+.feature-field label,
+.box label {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.feature-field input[type="file"],
+.box input[type="file"] {
+  color: var(--ink);
+  font: inherit;
+}
+
+.feature-field input[type="file"]::file-selector-button,
+.box input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 8px;
+  background-color: var(--solver);
+  color: var(--night-deep);
+  cursor: pointer;
+  font: inherit;
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.feature-field input[type="file"]::file-selector-button:hover,
+.box input[type="file"]::file-selector-button:hover {
+  background-color: var(--ink);
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.feature-submit,
+.submit {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.feature-submit-button,
+.submitbutton {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: min(280px, 100%);
+  min-height: 56px;
+  padding: 12px 20px;
+  border: 1px solid rgba(142, 199, 192, 0.55);
+  border-radius: 10px;
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(142, 199, 192, 0.14), rgba(142, 199, 192, 0.22));
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 20px;
+  cursor: pointer;
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  box-shadow: 0 10px 20px rgba(142, 199, 192, 0.15);
+}
+
+.feature-submit-button:hover,
+.submitbutton:hover {
+  background-color: rgba(142, 199, 192, 0.2);
+  border-color: var(--solver);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(142, 199, 192, 0.22);
+}
+
+.feature-submit-button:focus-visible,
+.submitbutton:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 4px;
+}
+
+.hidden {
+  display: none;
+}
+
+.feature-form-panel.hidden,
+#solver-form-panel.hidden,
+.feature-loading-screen.hidden,
+.loading-screen.hidden,
+.feature-status-panel.hidden,
+.status-panel.hidden,
+.feature-result-panel.hidden,
+.result-panel.hidden {
+  display: none;
+}
+
+.feature-error-banner,
+.error-banner {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 116, 116, 0.4);
+  border-radius: 12px;
+  background: rgba(127, 36, 36, 0.3);
+  color: #ffe6e6;
+  font-weight: 600;
+  box-shadow: 0 12px 24px rgba(127, 36, 36, 0.18);
+}
+
+.feature-loading-screen,
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 260px;
+  text-align: center;
+  color: var(--ink);
+  background: rgba(9, 11, 15, 0.18);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  padding: 24px;
+}
+
+.feature-spinner,
+.spinner {
+  width: 54px;
+  height: 54px;
+  border: 5px solid rgba(142, 199, 192, 0.2);
+  border-top-color: var(--solver);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 18px;
+}
+
+.feature-loading-screen h2,
+.loading-screen h2 {
+  margin: 0 0 8px;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+}
+
+.feature-loading-screen p,
+.loading-screen p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+.feature-status-panel,
+.status-panel {
+  margin-top: 20px;
+  padding: 16px 18px;
+  background: rgba(9, 11, 15, 0.42);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.feature-status-header,
+.status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.feature-status-header h3,
+.status-header h3 {
+  margin: 0;
+}
+
+.feature-status-pill,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(142, 199, 192, 0.14);
+  border: 1px solid rgba(142, 199, 192, 0.25);
+  color: var(--ink);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.feature-status-log,
+.status-log,
+.model-output {
+  box-sizing: border-box;
+  height: 180px;
+  min-height: 128px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(2, 3, 4, 0.38);
+  color: var(--ink);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.model-output-panel {
+  margin-top: 16px;
+}
+
+.model-output-panel h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.feature-status-entry,
+.status-entry {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.feature-status-entry:last-child,
+.status-entry:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.status-time {
+  color: var(--muted);
+  font-size: 0.78em;
+  font-variant-numeric: tabular-nums;
+  margin-right: 6px;
+}
+
+.feature-result-panel,
+.result-panel {
+  margin-top: 20px;
+  padding: 18px;
+  background: rgba(9, 11, 15, 0.42);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+}
+
+.feature-result-panel h3,
+.result-panel h3 {
+  margin: 0 0 12px;
+}
+
+.feature-result-panel pre,
+.result-panel pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink);
+  font-family: inherit;
+}
+
+.feature-pdf-viewer,
+.pdf-viewer {
+  width: 100%;
+  min-height: 720px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+body.theme-light {
+  --ink: #18212e;
+  --muted: #536175;
+  --night: #edf3f7;
+  --night-deep: #dfeaf1;
+  --panel: rgba(255, 255, 255, 0.7);
+  --panel-solid: #f7fbff;
+  --panel-hover: #edf5ff;
+  --line: rgba(24, 33, 46, 0.12);
+  --solver: #3ea6a0;
+  --generator: #d8863a;
+  background-image:
+    radial-gradient(circle at 15% 15%, rgba(62, 166, 160, 0.12), transparent 28rem),
+    radial-gradient(circle at 85% 80%, rgba(216, 134, 58, 0.12), transparent 26rem),
+    linear-gradient(145deg, var(--night-deep), var(--night));
+}
+
+body.theme-light .feature-card,
+body.theme-light .inputbox,
+body.theme-light .feature-field,
+body.theme-light .box,
+body.theme-light .feature-status-panel,
+body.theme-light .status-panel,
+body.theme-light .feature-result-panel,
+body.theme-light .result-panel,
+body.theme-light .feature-error-banner,
+body.theme-light .error-banner,
+body.theme-light .feature-loading-screen,
+body.theme-light .loading-screen {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+body.theme-light .feature-status-log,
+body.theme-light .status-log {
+  background: rgba(240, 246, 250, 0.9);
+}

@@ -1,0 +1,16 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}{% endblock %}</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'mainapp/features.css' %}">
+    {% block page_styles %}{% endblock %}
+</head>
+<body{% block body_attributes %}{% endblock %}>
+    {% block page_content %}{% endblock %}
+
+    <script src="{% static 'mainapp/js/theme-switcher.js' %}"></script>
+    {% block page_scripts %}{% endblock %}
+</body>
+</html>

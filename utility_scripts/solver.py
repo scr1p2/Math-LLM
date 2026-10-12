@@ -2,13 +2,17 @@
 
 import asyncio
 import base64
+import io
 import re
 import subprocess
 import tempfile
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator, NoReturn
 
+import httpx
+from PIL import Image, ImageOps
 from ollama import Client
 
 # Models tried in order when an uploaded image must be transcribed.
@@ -17,6 +21,17 @@ VISION_MODELS = ["qwen2.5vl"]
 TEXT_MODEL = "deepseek-r1:latest"
 # Bound external LaTeX compilation so a request cannot wait indefinitely.
 PDFLATEX_TIMEOUT_SECONDS = 120
+MAX_IMAGE_BYTES = 2_000_000
+MAX_IMAGE_DIMENSION = 2048
+MIN_IMAGE_QUALITY = 40
+
+
+def _raise_ollama_connection_error(exc: httpx.ConnectError) -> NoReturn:
+    raise RuntimeError(
+        "Could not connect to Ollama. Make sure the Ollama app is running "
+        "(or run `ollama serve`) and that OLLAMA_HOST points to its API "
+        "(default: http://localhost:11434)."
+    ) from exc
 
 
 @lru_cache(maxsize=1)
@@ -47,6 +62,11 @@ def ensure_image_bytes(image: Any) -> bytes:
 
     if hasattr(image, "read"):
         data = image.read()
+        if hasattr(image, "seek"):
+            try:
+                image.seek(0)
+            except (AttributeError, OSError):
+                pass
         return bytes(data) if isinstance(data, (bytes, bytearray)) else data
 
     if isinstance(image, str):
@@ -54,6 +74,59 @@ def ensure_image_bytes(image: Any) -> bytes:
             return image_file.read()
 
     raise TypeError(f"Unsupported image type: {type(image)!r}")
+
+
+def _resize_image_bytes(image_bytes: bytes, max_bytes: int = MAX_IMAGE_BYTES) -> bytes:
+    """Shrink an uploaded image until it fits Ollama's payload limits.
+
+    Large math scans can be several MB in size, which causes some local Ollama
+    installations to reject the request with a 400/"entity too large" response.
+    The image is converted to JPEG and progressively downscaled until the payload
+    is safely under the configured byte limit.
+    """
+    if len(image_bytes) <= max_bytes:
+        return image_bytes
+
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            image = ImageOps.exif_transpose(image)
+            if image.mode not in {"RGB", "L"}:
+                image = image.convert("RGB")
+
+            for quality in range(90, MIN_IMAGE_QUALITY - 1, -10):
+                buffer = io.BytesIO()
+                image.save(buffer, format="JPEG", quality=quality, optimize=True)
+                encoded = buffer.getvalue()
+                if len(encoded) <= max_bytes:
+                    return encoded
+
+                if image.width > MAX_IMAGE_DIMENSION or image.height > MAX_IMAGE_DIMENSION:
+                    scale = MAX_IMAGE_DIMENSION / max(image.width, image.height)
+                    resized = image.resize(
+                        (max(1, int(image.width * scale)), max(1, int(image.height * scale))),
+                        Image.Resampling.LANCZOS,
+                    )
+                    image = resized
+                    buffer = io.BytesIO()
+                    image.save(buffer, format="JPEG", quality=quality, optimize=True)
+                    encoded = buffer.getvalue()
+                    if len(encoded) <= max_bytes:
+                        return encoded
+
+            buffer = io.BytesIO()
+            image.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION), Image.Resampling.LANCZOS)
+            image.save(buffer, format="JPEG", quality=MIN_IMAGE_QUALITY, optimize=True)
+            encoded = buffer.getvalue()
+            if len(encoded) <= max_bytes:
+                return encoded
+
+    except Exception:
+        pass
+
+    raise ValueError(
+        "The uploaded image is too large to send to the vision model. "
+        "Please upload a smaller or lower-resolution image."
+    )
 
 
 def _compile_pdf(tex_path: Path) -> bytes:
@@ -92,7 +165,16 @@ def _compile_pdf(tex_path: Path) -> bytes:
             for stream in (completed.stdout, completed.stderr)
             if stream.strip()
         ) or "Unknown LaTeX error"
-        raise RuntimeError(f"PDF generation failed: {error_output}")
+        diagnostic = next(
+            (line.strip() for line in error_output.splitlines() if line.lstrip().startswith("!")),
+            "Unknown LaTeX error",
+        )
+        line_match = re.search(r"(?m)^l\.(\d+)", error_output)
+        location = f" at generated LaTeX line {line_match.group(1)}" if line_match else ""
+        raise RuntimeError(
+            f"PDF generation failed{location}: {diagnostic} "
+            "Check math delimiters and special characters in the generated solution."
+        )
 
     pdf_path = tex_path.with_suffix(".pdf")
     if not pdf_path.exists():
@@ -142,6 +224,87 @@ def _solution_document_body(solution_latex: str) -> str:
     return solution_latex.strip()
 
 
+_MATH_ENVIRONMENTS = {
+    "align",
+    "align*",
+    "displaymath",
+    "equation",
+    "equation*",
+    "gather",
+    "gather*",
+    "math",
+    "multline",
+    "multline*",
+}
+
+
+def _escape_latex_text_specials(solution_latex: str) -> str:
+    """Escape raw TeX-special text characters outside common math regions."""
+    escaped = []
+    in_math = False
+    index = 0
+
+    while index < len(solution_latex):
+        character = solution_latex[index]
+
+        if character == "\\":
+            environment = re.match(
+                r"\\(begin|end)\{([^{}]+)\}",
+                solution_latex[index:],
+            )
+            if environment:
+                command, name = environment.groups()
+                escaped.append(environment.group(0))
+                if name in _MATH_ENVIRONMENTS:
+                    in_math = command == "begin"
+                index += len(environment.group(0))
+                continue
+
+            if solution_latex.startswith(r"\(", index):
+                in_math = True
+                escaped.append(r"\(")
+                index += 2
+                continue
+            if solution_latex.startswith(r"\)", index):
+                in_math = False
+                escaped.append(r"\)")
+                index += 2
+                continue
+            if solution_latex.startswith(r"\[", index):
+                in_math = True
+                escaped.append(r"\[")
+                index += 2
+                continue
+            if solution_latex.startswith(r"\]", index):
+                in_math = False
+                escaped.append(r"\]")
+                index += 2
+                continue
+
+            escaped.append(character)
+            if index + 1 < len(solution_latex):
+                escaped.append(solution_latex[index + 1])
+                index += 2
+            else:
+                index += 1
+            continue
+
+        if character == "$":
+            delimiter = "$$" if solution_latex.startswith("$$", index) else "$"
+            in_math = not in_math
+            escaped.append(delimiter)
+            index += len(delimiter)
+            continue
+
+        if not in_math and character in {"_", "%", "&", "#"}:
+            escaped.append("\\" + character)
+        else:
+            escaped.append(character)
+        index += 1
+
+    return "".join(escaped)
+
+
 def _extract_latex_title(solution_latex: str) -> tuple[str | None, str]:
     """Return the first title and the remaining solution content.
 
@@ -181,27 +344,51 @@ def generate_pdf_bytes(solution_latex: str) -> bytes:
     empty, a generic title is supplied. The author is explicitly empty because
     solutions do not have an author field. The temporary directory is removed
     automatically after the PDF bytes have been read.
+
+    A small block is added to the top of the rendered PDF so the user can see
+    when the solution started, when it ended, and how long it took to produce.
     """
     if not solution_latex:
         raise ValueError("No solution content was provided to generate a PDF.")
 
+    started_at = datetime.now()
     title, solution_without_title = _extract_latex_title(solution_latex)
     title = title or "Step-by-Step Mathematical Solution"
     solution_body = _solution_document_body(solution_without_title)
     if not solution_body:
         raise ValueError("The solution contains no LaTeX document body to render.")
+    solution_body = _escape_latex_text_specials(solution_body)
+
+    finished_at = datetime.now()
+    elapsed_seconds = round((finished_at - started_at).total_seconds(), 2)
+    timestamp_start = started_at.strftime("%Y-%m-%d %H:%M:%S")
+    timestamp_end = finished_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    # Include the timing metadata at the top of the document so users can see the
+    # exact start/end times and the total render time in the final PDF.
+    metadata_block = "\n".join(
+        (
+            r"\noindent\textbf{Start time: " + timestamp_start + r"}",
+            r"\noindent\textbf{End time: " + timestamp_end + r"}",
+            r"\noindent\textbf{Elapsed: " + str(elapsed_seconds) + r" seconds}",
+            r"\vspace{0.5em}",
+        )
+    )
 
     # Build a controlled preamble so model-generated package/class declarations
     # cannot conflict with the document structure maintained by this module.
     document = "\n".join(
         (
             r"\documentclass{article}",
+            r"\pdfcompresslevel=9",
+            r"\pdfobjcompresslevel=3",
             r"\usepackage[margin=1in]{geometry}",
             r"\usepackage{amsmath,amssymb}",
             r"\title{" + title + "}",
             r"\author{}",
             r"\begin{document}",
             r"\maketitle",
+            metadata_block,
             solution_body,
             r"\end{document}",
         )
@@ -213,38 +400,93 @@ def generate_pdf_bytes(solution_latex: str) -> bytes:
         return _compile_pdf(tex_path)
 
 
-def process_image(image: Any) -> str:
-    """Ask the configured vision model to transcribe an uploaded math problem.
+def stream_ollama_text(response_iter: Iterator[Any], *, prefix: str = "") -> Iterator[str]:
+    """Normalize Ollama streaming chunks into a plain-text stream for the UI.
 
-    Ollama's chat API expects image content as base64. Candidate models are
-    retried only for errors indicating image-input incompatibility; unrelated
-    service/model errors are raised immediately.
+    The Ollama Python client exposes each streaming item as a response object, not
+    always a plain dict. Some chunks also carry partial content fragments, so this
+    function accepts both object-based and dictionary-based payloads before
+    emitting any text to the browser.
     """
-    # Convert file or upload input to the base64 image payload Ollama expects.
-    img_b64 = base64.b64encode(ensure_image_bytes(image)).decode()
+    for chunk in response_iter:
+        content = ""
+
+        if isinstance(chunk, dict):
+            message = chunk.get("message", {}) or {}
+            if isinstance(message, dict):
+                content = message.get("content", "") or ""
+        else:
+            message = getattr(chunk, "message", None)
+            if isinstance(message, dict):
+                content = message.get("content", "") or ""
+            else:
+                content = getattr(message, "content", "") or ""
+
+        if content:
+            yield prefix + content
+
+
+def _image_to_ollama_payload(image: Any) -> str:
+    """Prepare the image payload for Ollama while keeping file size in check.
+
+    The backend compresses large scans before sending them to the model because a
+    raw image payload can trigger 400 responses from local Ollama instances even
+    when the request itself is otherwise valid.
+    """
+    original_bytes = ensure_image_bytes(image)
+    image_bytes = _resize_image_bytes(original_bytes)
+    return base64.b64encode(image_bytes).decode("utf-8")
+
+
+def process_image_events(image: Any) -> Iterator[tuple[str, str]]:
+    """Yield status and transcription events for an uploaded math problem."""
+    yield ("status", "Preparing the uploaded image for the vision model...")
+    img_b64 = _image_to_ollama_payload(image)
     client = Client()
     last_error = None
 
-    for model_name in VISION_MODELS:
+    for model_index, model_name in enumerate(VISION_MODELS, start=1):
+        yield (
+            "status",
+            f"Transcribing with {model_name} "
+            f"({model_index}/{len(VISION_MODELS)})...",
+        )
         try:
-            resp = client.chat(
+            response_iter = client.chat(
                 model=model_name,
                 messages=[{
-                    "options": {
-                        "num_ctx": 8000,
-                        "num_predict": 4000,
-                    },
                     "role": "user",
                     "content": "Transcribe this math problem exactly, using LaTeX for all notation.",
                     "images": [img_b64],
                 }],
+                options={
+                    "num_ctx": 8000,
+                    "num_predict": 4000,
+                },
+                stream=True,
             )
-            return resp["message"]["content"]
-        except Exception as exc:
+            for text in stream_ollama_text(response_iter):
+                yield ("content", text)
+            return
+        except Exception as exc:  # pragma: no cover - exercised through integration tests
             last_error = exc
+            if isinstance(exc, httpx.ConnectError):
+                _raise_ollama_connection_error(exc)
             message = str(exc).lower()
-            # Only compatibility failures justify trying another vision model.
-            if "image input is not supported" in message or "mmproj" in message or "not supported" in message:
+            if "too large" in message or "entity too large" in message or "payload too large" in message:
+                raise RuntimeError(
+                    "The uploaded image is too large for the Ollama model. "
+                    "Please upload a smaller image or a lower-resolution scan."
+                ) from exc
+            if (
+                "image input is not supported" in message
+                or "mmproj" in message
+                or "not supported" in message
+            ):
+                yield (
+                    "status",
+                    f"{model_name} does not support image input; trying the next model.",
+                )
                 continue
             raise
 
@@ -255,22 +497,39 @@ def process_image(image: Any) -> str:
     ) from last_error
 
 
-def solve(problem_text: str) -> str:
-    """Generate a detailed LaTeX solution for a transcribed math problem.
+def process_image(image: Any) -> Iterator[str]:
+    """Stream one vision-model transcription of an uploaded math problem."""
+    for event_type, text in process_image_events(image):
+        if event_type == "content":
+            yield text
 
-    The model receives both the problem and the repository's presentation
-    instructions, and is asked to return body content rather than a full TeX
-    document; PDF generation owns the document wrapper and compilation.
+
+def solve(problem_text: str) -> Iterator[str]:
+    """Stream one detailed, user-facing LaTeX solution from the text model.
+
+    Each streamed text chunk is both displayed in the live status log and
+    accumulated by callers that need the complete solution, such as PDF creation.
     """
-    client = Client()
-    resp = client.chat(
-        model=TEXT_MODEL,
-        messages=[{
-            "role": "user",
-            "content": f"Solve step by step, with full justification, in LaTeX. Return only the content that belongs inside a LaTeX document body; do not include a document class, package imports, document environment, or Markdown code fences.\n\n{problem_text}\n\nHere are the instructions I want you to follow:\n\n{read_prompt()}",
-        }],
-    )
-    return resp["message"]["content"]
+    try:
+        client = Client()
+        response_iter = client.chat(
+            model=TEXT_MODEL,
+            messages=[{
+                "role": "user",
+                "content": f"Give a clear, step-by-step mathematical derivation with concise justifications and explain the concepts used. Show the user-facing solution, not private internal thoughts. Write in LaTeX and return only the content that belongs inside a LaTeX document body; do not include a document class, package imports, document environment, or Markdown code fences.\n\n{problem_text}\n\nHere are the instructions I want you to follow:\n\n{read_prompt()}",
+            }],
+            stream=True,
+        )
+        yield from stream_ollama_text(response_iter)
+    except httpx.ConnectError as exc:
+        _raise_ollama_connection_error(exc)
+
+
+def solve_events(problem_text: str) -> Iterator[tuple[str, str]]:
+    """Yield startup status and user-facing solution content as it is generated."""
+    yield ("status", f"Starting {TEXT_MODEL}...")
+    for text in solve(problem_text):
+        yield ("content", text)
 
 
 async def solve_problem_to_pdf(problem_text: str) -> bytes:
@@ -279,5 +538,5 @@ async def solve_problem_to_pdf(problem_text: str) -> bytes:
     Both model inference and subprocess-based PDF compilation are synchronous
     operations, so each is moved to a worker thread before awaiting its result.
     """
-    solution = await asyncio.to_thread(solve, problem_text)
+    solution = await asyncio.to_thread(lambda: "".join(solve(problem_text)))
     return await asyncio.to_thread(generate_pdf_bytes, solution)

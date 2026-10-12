@@ -23,3 +23,14 @@ This project is ideal for:
 - Clean, responsive web design
 - Django-based backend architecture
 - Custom prompts for math-related tasks
+
+## Local Ollama setup
+
+The solver uses a local Ollama service for image transcription and solution
+generation. Start the Ollama app (or run `ollama serve`) before submitting a
+problem; the default API address is `http://localhost:11434`. If Ollama is
+running elsewhere, set `OLLAMA_HOST` to its API address. The solver needs the
+`qwen2.5vl` vision model and the `deepseek-r1:latest` text model; install them
+with `ollama pull qwen2.5vl` and `ollama pull deepseek-r1:latest`.
+
+As for the generator this is still under development.

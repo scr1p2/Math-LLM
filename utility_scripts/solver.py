@@ -9,6 +9,7 @@ import tempfile
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from threading import Event
 from typing import Any, Iterator, NoReturn
 
 import httpx
@@ -400,7 +401,12 @@ def generate_pdf_bytes(solution_latex: str) -> bytes:
         return _compile_pdf(tex_path)
 
 
-def stream_ollama_text(response_iter: Iterator[Any], *, prefix: str = "") -> Iterator[str]:
+def stream_ollama_text(
+    response_iter: Iterator[Any],
+    *,
+    prefix: str = "",
+    cancellation_event: Event | None = None,
+) -> Iterator[str]:
     """Normalize Ollama streaming chunks into a plain-text stream for the UI.
 
     The Ollama Python client exposes each streaming item as a response object, not
@@ -408,22 +414,34 @@ def stream_ollama_text(response_iter: Iterator[Any], *, prefix: str = "") -> Ite
     function accepts both object-based and dictionary-based payloads before
     emitting any text to the browser.
     """
-    for chunk in response_iter:
-        content = ""
+    iterator = iter(response_iter)
+    try:
+        while cancellation_event is None or not cancellation_event.is_set():
+            try:
+                chunk = next(iterator)
+            except StopIteration:
+                return
+            if cancellation_event is not None and cancellation_event.is_set():
+                return
 
-        if isinstance(chunk, dict):
-            message = chunk.get("message", {}) or {}
-            if isinstance(message, dict):
-                content = message.get("content", "") or ""
-        else:
-            message = getattr(chunk, "message", None)
-            if isinstance(message, dict):
-                content = message.get("content", "") or ""
+            content = ""
+            if isinstance(chunk, dict):
+                message = chunk.get("message", {}) or {}
+                if isinstance(message, dict):
+                    content = message.get("content", "") or ""
             else:
-                content = getattr(message, "content", "") or ""
+                message = getattr(chunk, "message", None)
+                if isinstance(message, dict):
+                    content = message.get("content", "") or ""
+                else:
+                    content = getattr(message, "content", "") or ""
 
-        if content:
-            yield prefix + content
+            if content:
+                yield prefix + content
+    finally:
+        close = getattr(iterator, "close", None)
+        if close is not None:
+            close()
 
 
 def _image_to_ollama_payload(image: Any) -> str:
@@ -438,14 +456,22 @@ def _image_to_ollama_payload(image: Any) -> str:
     return base64.b64encode(image_bytes).decode("utf-8")
 
 
-def process_image_events(image: Any) -> Iterator[tuple[str, str]]:
+def process_image_events(
+    image: Any,
+    *,
+    cancellation_event: Event | None = None,
+) -> Iterator[tuple[str, str]]:
     """Yield status and transcription events for an uploaded math problem."""
     yield ("status", "Preparing the uploaded image for the vision model...")
+    if cancellation_event is not None and cancellation_event.is_set():
+        return
     img_b64 = _image_to_ollama_payload(image)
     client = Client()
     last_error = None
 
     for model_index, model_name in enumerate(VISION_MODELS, start=1):
+        if cancellation_event is not None and cancellation_event.is_set():
+            return
         yield (
             "status",
             f"Transcribing with {model_name} "
@@ -465,7 +491,10 @@ def process_image_events(image: Any) -> Iterator[tuple[str, str]]:
                 },
                 stream=True,
             )
-            for text in stream_ollama_text(response_iter):
+            for text in stream_ollama_text(
+                response_iter,
+                cancellation_event=cancellation_event,
+            ):
                 yield ("content", text)
             return
         except Exception as exc:  # pragma: no cover - exercised through integration tests
@@ -497,20 +526,33 @@ def process_image_events(image: Any) -> Iterator[tuple[str, str]]:
     ) from last_error
 
 
-def process_image(image: Any) -> Iterator[str]:
+def process_image(
+    image: Any,
+    *,
+    cancellation_event: Event | None = None,
+) -> Iterator[str]:
     """Stream one vision-model transcription of an uploaded math problem."""
-    for event_type, text in process_image_events(image):
+    for event_type, text in process_image_events(
+        image,
+        cancellation_event=cancellation_event,
+    ):
         if event_type == "content":
             yield text
 
 
-def solve(problem_text: str) -> Iterator[str]:
+def solve(
+    problem_text: str,
+    *,
+    cancellation_event: Event | None = None,
+) -> Iterator[str]:
     """Stream one detailed, user-facing LaTeX solution from the text model.
 
     Each streamed text chunk is both displayed in the live status log and
     accumulated by callers that need the complete solution, such as PDF creation.
     """
     try:
+        if cancellation_event is not None and cancellation_event.is_set():
+            return
         client = Client()
         response_iter = client.chat(
             model=TEXT_MODEL,
@@ -520,15 +562,24 @@ def solve(problem_text: str) -> Iterator[str]:
             }],
             stream=True,
         )
-        yield from stream_ollama_text(response_iter)
+        yield from stream_ollama_text(
+            response_iter,
+            cancellation_event=cancellation_event,
+        )
     except httpx.ConnectError as exc:
         _raise_ollama_connection_error(exc)
 
 
-def solve_events(problem_text: str) -> Iterator[tuple[str, str]]:
+def solve_events(
+    problem_text: str,
+    *,
+    cancellation_event: Event | None = None,
+) -> Iterator[tuple[str, str]]:
     """Yield startup status and user-facing solution content as it is generated."""
     yield ("status", f"Starting {TEXT_MODEL}...")
-    for text in solve(problem_text):
+    if cancellation_event is not None and cancellation_event.is_set():
+        return
+    for text in solve(problem_text, cancellation_event=cancellation_event):
         yield ("content", text)
 
 

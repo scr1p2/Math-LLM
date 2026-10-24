@@ -32,4 +32,18 @@ Here are the detailed instructions on how you should present the solution:
 
 Return only the LaTeX content for the document body, except that you should include your descriptive title as \title{...}. The PDF generator moves that command into the preamble and renders it. Do not include \documentclass, \usepackage, \begin{document}, \end{document}, \maketitle, or Markdown code fences.
 Ensure the LaTeX is syntactically valid: balance all math delimiters, escape special characters such as \_, \%, \&, and \# when they appear in ordinary text, and use only environments supported by the standard article class with amsmath and amssymb.
---- 
+---
+
+In solving the problem make sure that you follow Polya's Four-Step Problem Solving Strategy. Here are the steps: 
+
+1. Understand the problem 
+   - In this case all you have to do is to obviously read the problem. Only do what is required and not anything else. 
+
+2. Devise a plan 
+
+3. Carry out the Plan 
+
+4. Review the Solution 
+   - Make sure to do this before you finally present the solution.
+
+Follow Polya's four step problem solving strategy religiously to prevent any unnecessary work. 

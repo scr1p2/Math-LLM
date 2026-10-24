@@ -6,6 +6,7 @@ import tempfile
 import time
 import warnings
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -27,6 +28,7 @@ from utility_scripts.solver import (
     process_image_events,
     solve,
     solve_events,
+    stream_ollama_text,
     solve_problem_to_pdf,
 )
 
@@ -89,9 +91,17 @@ class SharedTemplateTests(SimpleTestCase):
                 self.assertContains(response, f"<title>{title}</title>")
                 self.assertContains(response, 'id="theme-toggle"')
                 self.assertContains(response, f"mainapp/{stylesheet}")
+                self.assertContains(response, "mainapp/js/cancellable-requests.js")
                 if script:
                     self.assertContains(response, f"mainapp/{script}")
 
+    def test_solver_and_generator_back_buttons_cancel_pending_requests(self):
+        for path in ("/solver/", "/generator/"):
+            with self.subTest(path=path):
+                self.assertContains(
+                    self.client.get(path),
+                    "data-cancel-pending-requests",
+                )
 
 class PdfGenerationTests(SimpleTestCase):
     def test_generate_pdf_bytes_returns_valid_pdf_payload(self):
@@ -335,9 +345,10 @@ class SolverPipelineTests(SimpleTestCase):
         with patch(
             "utility_scripts.solver.solve",
             return_value=iter(["Step 1", ": result"]),
-        ):
+        ) as solve_mock:
             events = list(solve_events("problem"))
 
+        solve_mock.assert_called_once_with("problem", cancellation_event=None)
         self.assertEqual(
             events,
             [
@@ -346,6 +357,28 @@ class SolverPipelineTests(SimpleTestCase):
                 ("content", ": result"),
             ],
         )
+
+    def test_stream_ollama_text_closes_response_after_cancellation(self):
+        cancellation_event = Event()
+        response_closed = []
+
+        def response_chunks():
+            try:
+                yield SimpleNamespace(message=SimpleNamespace(content="first"))
+                yield SimpleNamespace(message=SimpleNamespace(content="discarded"))
+            finally:
+                response_closed.append(True)
+
+        text_stream = stream_ollama_text(
+            response_chunks(),
+            cancellation_event=cancellation_event,
+        )
+
+        self.assertEqual(next(text_stream), "first")
+        cancellation_event.set()
+        with self.assertRaises(StopIteration):
+            next(text_stream)
+        self.assertEqual(response_closed, [True])
 
     def test_resize_image_bytes_compresses_large_uploads(self):
         image = Image.effect_noise((5000, 5000), 256)
@@ -401,7 +434,66 @@ class SolverViewTests(SimpleTestCase):
         self.assertIn('"type": "status", "text": "Starting DeepSeek"', response_text)
         self.assertIn('"text": "Step 1"', response_text)
         self.assertIn('"type": "done"', response_text)
-        solve_mock.assert_called_once_with("problem")
+        solve_mock.assert_called_once()
+        self.assertEqual(solve_mock.call_args.args, ("problem",))
+        self.assertIsInstance(solve_mock.call_args.kwargs["cancellation_event"], Event)
+
+    def test_closing_async_solver_stream_signals_model_cancellation(self):
+        request = self.request_factory.post(
+            "/solver/",
+            {"action": "solve", "problem": "problem"},
+        )
+        cancellation_events = []
+
+        def cancellable_events(problem, *, cancellation_event):
+            cancellation_events.append(cancellation_event)
+            yield ("status", "Starting DeepSeek")
+            while not cancellation_event.wait(0.01):
+                pass
+
+        with patch(
+            "mainapp.views.solve_events",
+            side_effect=cancellable_events,
+        ):
+            response = asyncio.run(solver_view(request))
+
+            async def consume_one_then_disconnect():
+                stream = response.streaming_content.__aiter__()
+                first_chunk = await anext(stream)
+                await stream.aclose()
+                return first_chunk
+
+            first_chunk = asyncio.run(consume_one_then_disconnect())
+
+        self.assertIn('"Starting DeepSeek"', first_chunk.decode())
+        self.assertEqual(len(cancellation_events), 1)
+        self.assertTrue(cancellation_events[0].is_set())
+
+    def test_closing_wsgi_solver_stream_signals_model_cancellation(self):
+        request = RequestFactory().post(
+            "/solver/",
+            {"action": "solve", "problem": "problem"},
+        )
+        cancellation_events = []
+
+        def cancellable_events(problem, *, cancellation_event):
+            cancellation_events.append(cancellation_event)
+            yield ("status", "Starting DeepSeek")
+            while not cancellation_event.wait(0.01):
+                pass
+
+        with patch(
+            "mainapp.views.solve_events",
+            side_effect=cancellable_events,
+        ):
+            response = asyncio.run(solver_view(request))
+            stream = iter(response.streaming_content)
+            first_chunk = next(stream)
+            response.close()
+
+        self.assertIn(b'"Starting DeepSeek"', first_chunk)
+        self.assertEqual(len(cancellation_events), 1)
+        self.assertTrue(cancellation_events[0].is_set())
 
     def test_read_action_streams_image_transcription(self):
         uploaded_file = SimpleUploadedFile("problem.png", b"image bytes")

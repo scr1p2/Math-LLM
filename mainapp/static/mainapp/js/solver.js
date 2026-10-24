@@ -156,13 +156,14 @@ function showPdfResult(blob) {
     showResult();
 }
 
-async function postFormData(formData) {
+async function postFormData(formData, signal) {
     return fetch(solverEndpoint, {
         method: 'POST',
         body: formData,
         headers: {
             'X-CSRFToken': csrfToken,
         },
+        signal,
     });
 }
 
@@ -232,28 +233,28 @@ async function streamTextResponse(
     return text;
 }
 
-async function readProblemWithStream(fileInput) {
+async function readProblemWithStream(fileInput, signal) {
     const readFormData = new FormData(form);
     readFormData.append('action', 'read');
     readFormData.set('fileInput', fileInput);
 
     imageOutput.textContent = '';
     setHidden(imageOutputPanel, false);
-    const response = await postFormData(readFormData);
+    const response = await postFormData(readFormData, signal);
     return streamTextResponse(response, (chunk) => {
         imageOutput.textContent += chunk;
         imageOutput.scrollTop = imageOutput.scrollHeight;
     }, appendStatus);
 }
 
-async function solveProblemWithStream(problemText) {
+async function solveProblemWithStream(problemText, signal) {
     const solveFormData = new FormData();
     solveFormData.append('action', 'solve');
     solveFormData.append('problem', problemText);
 
     solutionOutput.textContent = '';
     setHidden(solutionOutputPanel, false);
-    const response = await postFormData(solveFormData);
+    const response = await postFormData(solveFormData, signal);
 
     return streamTextResponse(response, (chunk) => {
         solutionOutput.textContent += chunk;
@@ -273,13 +274,14 @@ async function handleSubmit(event) {
     showStatusPanel();
     setStatusPill('Reading');
 
+    const requestScope = window.mathLlmRequests.begin();
     try {
         const fileInput = form.querySelector('#fileInput').files[0];
         if (!fileInput) {
             throw new Error('Please upload an image before submitting.');
         }
 
-        const readProblem = await readProblemWithStream(fileInput);
+        const readProblem = await readProblemWithStream(fileInput, requestScope.signal);
         const trimmedProblem = (readProblem || '').trim();
         if (!trimmedProblem) {
             throw new Error('The image reader returned no problem text.');
@@ -288,7 +290,7 @@ async function handleSubmit(event) {
         setLoadingState('solving');
         setStatusPill('Solving');
         showStatusPanel();
-        const solution = await solveProblemWithStream(trimmedProblem);
+        const solution = await solveProblemWithStream(trimmedProblem, requestScope.signal);
 
         if (!solution || !solution.trim()) {
             throw new Error('The model returned an empty solution.');
@@ -301,7 +303,7 @@ async function handleSubmit(event) {
         const pdfFormData = new FormData();
         pdfFormData.append('action', 'pdf');
         pdfFormData.append('solution', solution.trim());
-        const response = await postFormData(pdfFormData);
+        const response = await postFormData(pdfFormData, requestScope.signal);
 
         const contentType = (response.headers.get('Content-Type') || '').toLowerCase();
         const contentDisposition = (response.headers.get('Content-Disposition') || '').toLowerCase();
@@ -324,6 +326,9 @@ async function handleSubmit(event) {
         setStatusPill('Complete');
         showTextResult('LLM response', data.text || data.message || 'No readable text detected.');
     } catch (error) {
+        if (error.name === 'AbortError') {
+            return;
+        }
         const errorMessage = error instanceof TypeError
             ? 'Could not reach the solver server. Check that the Django server is running and try again.'
             : error.message || 'Something went wrong.';
@@ -333,6 +338,8 @@ async function handleSubmit(event) {
         setHidden(loadingScreen, true);
         setStatusPill('Error');
         showStatusPanel();
+    } finally {
+        requestScope.finish();
     }
 }
 

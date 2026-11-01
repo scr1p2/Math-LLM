@@ -40,6 +40,11 @@
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
 }
 
+.feature-form-panel > .description p {
+  font-size: clamp(1.25rem, 2.4vw, 1.5rem);
+  line-height: 1.5;
+}
+
 .feature-field,
 .box {
   display: flex;
@@ -242,6 +247,100 @@
   text-transform: uppercase;
 }
 
+.status-pill[data-state="reading"] {
+  color: #b6e3ff;
+  background: rgba(57, 143, 194, 0.18);
+  border-color: rgba(102, 190, 239, 0.4);
+}
+
+.status-pill[data-state="solving"] {
+  color: #e2c7ff;
+  background: rgba(142, 92, 192, 0.2);
+  border-color: rgba(184, 137, 230, 0.45);
+}
+
+.status-pill[data-state="pdf"] {
+  color: #ffe0a6;
+  background: rgba(190, 133, 38, 0.2);
+  border-color: rgba(230, 177, 82, 0.45);
+}
+
+.status-pill[data-state="complete"] {
+  color: #a9edc3;
+  background: rgba(50, 151, 92, 0.2);
+  border-color: rgba(94, 204, 139, 0.45);
+}
+
+.status-pill[data-state="error"] {
+  color: #ffc0c0;
+  background: rgba(178, 57, 57, 0.2);
+  border-color: rgba(235, 111, 111, 0.45);
+}
+
+.solver-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.solver-steps li {
+  position: relative;
+  padding: 10px 12px 10px 36px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  background: rgba(2, 3, 4, 0.2);
+  font-size: 0.9rem;
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.solver-steps li::before {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  content: "";
+  transform: translateY(-50%);
+}
+
+.solver-steps li.is-active {
+  color: var(--ink);
+  border-color: var(--solver);
+  background: rgba(142, 199, 192, 0.12);
+}
+
+.solver-steps li.is-active::before {
+  background: var(--solver);
+  box-shadow: 0 0 0 4px rgba(142, 199, 192, 0.16);
+}
+
+.solver-steps li.is-complete {
+  color: #8fe0aa;
+  border-color: rgba(94, 204, 139, 0.4);
+}
+
+.solver-steps li.is-complete::before {
+  border-color: #5ecc8b;
+  background: #5ecc8b;
+  content: "✓";
+  color: #10251a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.solver-steps li.is-error {
+  color: #ffc0c0;
+  border-color: rgba(235, 111, 111, 0.45);
+}
+
 .feature-status-log,
 .status-log,
 .model-output {
@@ -364,4 +463,42 @@ body.theme-light .loading-screen {
 body.theme-light .feature-status-log,
 body.theme-light .status-log {
   background: rgba(240, 246, 250, 0.9);
+}
+
+body.theme-light .solver-steps li {
+  background: rgba(240, 246, 250, 0.65);
+}
+
+body.theme-light .status-pill[data-state="reading"] {
+  color: #14577d;
+}
+
+body.theme-light .status-pill[data-state="solving"] {
+  color: #613b86;
+}
+
+body.theme-light .status-pill[data-state="pdf"] {
+  color: #74500d;
+}
+
+body.theme-light .status-pill[data-state="complete"] {
+  color: #1b6638;
+}
+
+body.theme-light .status-pill[data-state="error"] {
+  color: #842626;
+}
+
+body.theme-light .solver-steps li.is-complete {
+  color: #1b6638;
+}
+
+body.theme-light .solver-steps li.is-error {
+  color: #842626;
+}
+
+@media (max-width: 560px) {
+  .solver-steps {
+    grid-template-columns: 1fr;
+  }
 }

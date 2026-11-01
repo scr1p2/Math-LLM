@@ -34,3 +34,19 @@ running elsewhere, set `OLLAMA_HOST` to its API address. The solver needs the
 with `ollama pull qwen2.5vl` and `ollama pull deepseek-r1:latest`.
 
 As for the generator this is still under development.
+
+## Development logging
+
+The Django and solver logs are formatted with timestamps, severity, and logger
+names. Severity-based colors make page handling, solver requests, Ollama model
+work, PDF compilation, and server startup easier to follow. Logs are sent to
+the console only while Django `DEBUG` is enabled. `DJANGO_DEBUG` controls that
+setting and defaults to `True` for local development; set `DJANGO_DEBUG=False`
+in production to disable debug mode and these development logs.
+
+When a user clicks **Back to Homepage** while a solver stream is active, the
+browser aborts the pending request before navigating. The server logs the
+stream disconnect, requests cancellation of the model event stream, and logs
+the Ollama response-stream close when the worker processes that cancellation.
+The homepage request is then logged as a separate page render. Logs record
+workflow stages and sizes/counts, not uploaded image contents or problem text.

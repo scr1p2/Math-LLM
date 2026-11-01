@@ -8,11 +8,7 @@ import time
 OLLAMA_RETRY_INTERVAL_SECONDS = 5
 OLLAMA_REQUEST_TIMEOUT_SECONDS = 5
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("manage")
 
 
 def _wait_for_ollama():
@@ -22,25 +18,31 @@ def _wait_for_ollama():
 
     client = Client(timeout=OLLAMA_REQUEST_TIMEOUT_SECONDS)
     attempt = 0
-    logger.info("Waiting for Ollama to become available before starting Django.")
+    started_at = time.monotonic()
+    logger.info(
+        "startup.ollama.wait.begin timeout_seconds=%s retry_interval_seconds=%s",
+        OLLAMA_REQUEST_TIMEOUT_SECONDS,
+        OLLAMA_RETRY_INTERVAL_SECONDS,
+    )
 
     while True:
         attempt += 1
         try:
+            logger.debug("startup.ollama.check.begin attempt=%s", attempt)
             client.list()
         except Exception as exc:
             logger.warning(
-                "Ollama is not ready (attempt %d): %s. Retrying in %d seconds.",
+                "startup.ollama.check.failed attempt=%s retry_in_seconds=%s error=%s",
                 attempt,
-                exc,
                 OLLAMA_RETRY_INTERVAL_SECONDS,
+                exc,
             )
             time.sleep(OLLAMA_RETRY_INTERVAL_SECONDS)
         else:
             logger.info(
-                "Ollama is running and responding; starting Django "
-                "after %d attempt(s).",
+                "startup.ollama.wait.complete attempts=%s elapsed_seconds=%.2f",
                 attempt,
+                time.monotonic() - started_at,
             )
             return
 
@@ -48,9 +50,9 @@ def _wait_for_ollama():
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mathllm.settings')
-    if len(sys.argv) > 1 and sys.argv[1] == "runserver":
-        _wait_for_ollama()
     try:
+        import django
+        from django.conf import settings
         from django.core.management import execute_from_command_line
     except ImportError as exc:
         raise ImportError(
@@ -58,6 +60,10 @@ def main():
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
+
+    django.setup()
+    if len(sys.argv) > 1 and sys.argv[1] == "runserver" and settings.DEBUG:
+        _wait_for_ollama()
     execute_from_command_line(sys.argv)
 
 

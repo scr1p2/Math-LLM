@@ -10,10 +10,30 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import logging
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+class ColoredFormatter(logging.Formatter):
+    """Color development log lines by severity for easier scanning."""
+
+    LEVEL_COLORS = {
+        logging.DEBUG: "\033[90m",
+        logging.INFO: "\033[36m",
+        logging.WARNING: "\033[33m",
+        logging.ERROR: "\033[31m",
+        logging.CRITICAL: "\033[1;31m",
+    }
+    RESET = "\033[0m"
+
+    def format(self, record):
+        message = super().format(record)
+        color = self.LEVEL_COLORS.get(record.levelno)
+        return f"{color}{message}{self.RESET}" if color else message
 
 
 # Quick-start development settings - unsuitable for production
@@ -23,9 +43,60 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-#d$@faaicdh@p3xytpqg3(o5d=39xh^cw=p1d-tr%6v-ae8wfl'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DJANGO_DEBUG", "True").lower() in {"1", "true", "yes"}
 
 ALLOWED_HOSTS = []
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "require_debug_true": {
+            "()": "django.utils.log.RequireDebugTrue",
+        },
+    },
+    "formatters": {
+        "development": {
+            "()": "mathllm.settings.ColoredFormatter",
+            "format": "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+            "datefmt": "%H:%M:%S",
+        },
+    },
+    "handlers": {
+        "development_console": {
+            "class": "logging.StreamHandler",
+            "filters": ["require_debug_true"],
+            "formatter": "development",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["development_console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.server": {
+            "handlers": ["development_console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "mainapp": {
+            "handlers": ["development_console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "utility_scripts": {
+            "handlers": ["development_console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "manage": {
+            "handlers": ["development_console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
 
 # Application definition
 

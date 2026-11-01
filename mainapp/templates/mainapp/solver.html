@@ -21,19 +21,18 @@
         <div class="inputbox feature-card">
             <div id="feature-form-panel" class="feature-form-panel">
                 <div class="description">
-                    <p>Enter your problem below:</p>
+                    <p>Upload an image of a math problem to get a worked solution.</p>
                 </div>
                 <form id="solver-form" method="post" action="{% url 'solver' %}" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="box feature-field">
-                        <label for="fileInput">Upload a file:</label>
-                        <input type="file" id="fileInput" name="fileInput" required>
+                        <label for="fileInput">Problem image:</label>
+                        <input type="file" id="fileInput" name="fileInput" accept="image/*" required>
                     </div>
                     <div class="box feature-field">
                         <p>
-                            Attach an image file containing the problem that needs to be solved.
-                            It can be from a textbook, a handwritten note, or any other source. The system will then use solve it through the language model you used
-                            and list out the mathematical concepts and techniques you need to take note of.
+                            The image model transcribes the problem, then a separate math model
+                            creates a step-by-step solution and a downloadable PDF.
                         </p>
                     </div>
                     <div class="submit feature-submit">
@@ -52,16 +51,21 @@
 
             <div id="feature-status-panel" class="status-panel feature-status-panel hidden" aria-live="polite">
                 <div class="status-header feature-status-header">
-                    <h3>LLM live status</h3>
+                    <h3>Solver progress</h3>
                     <span id="status-pill" class="status-pill feature-status-pill">Working</span>
                 </div>
+                <ol class="solver-steps" aria-label="Solver steps">
+                    <li data-solver-step="reading">Read image</li>
+                    <li data-solver-step="solving">Solve problem</li>
+                    <li data-solver-step="pdf">Create PDF</li>
+                </ol>
                 <div id="status-log" class="status-log feature-status-log"></div>
                 <section id="image-output-panel" class="model-output-panel hidden" aria-live="polite">
-                    <h3>Image model output</h3>
+                    <h3>Image transcription</h3>
                     <pre id="image-output" class="model-output"></pre>
                 </section>
                 <section id="solution-output-panel" class="model-output-panel hidden" aria-live="polite">
-                    <h3>DeepSeek solution stream</h3>
+                    <h3>Math solution</h3>
                     <pre id="solution-output" class="model-output"></pre>
                 </section>
             </div>

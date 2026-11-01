@@ -30,6 +30,8 @@ async def _stream_solver_events(
     event_queue: Queue[tuple[str, tuple[str, str] | Exception | None]] = Queue()
     event_demand = Semaphore(0)
     _start_event_producer(events, event_queue, event_demand, cancellation_event)
+    completed = False
+    failed = False
     try:
         while True:
             event_demand.release()
@@ -45,9 +47,12 @@ async def _stream_solver_events(
                     yield f"data: {json.dumps({'type': 'progress', 'text': progress_message})}\n\n"
 
             if event_type == "done":
+                completed = True
+                logger.info("solver.stream.complete transport=asgi")
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 return
             if event_type == "error":
+                failed = True
                 if isinstance(value, Exception):
                     logger.error(
                         "Solver event stream failed: %s",
@@ -61,6 +66,11 @@ async def _stream_solver_events(
             event_type, text = value
             yield f"data: {json.dumps({'type': event_type, 'text': text})}\n\n"
     finally:
+        if not completed and not failed:
+            logger.info(
+                "solver.stream.client_disconnected transport=asgi "
+                "cancellation_requested=true; closing model event stream"
+            )
         cancellation_event.set()
 
 
@@ -113,6 +123,8 @@ def _stream_solver_events_sync(
     event_queue: Queue[tuple[str, tuple[str, str] | Exception | None]] = Queue()
     event_demand = Semaphore(0)
     _start_event_producer(events, event_queue, event_demand, cancellation_event)
+    completed = False
+    failed = False
 
     try:
         while True:
@@ -125,9 +137,12 @@ def _stream_solver_events_sync(
                     yield f"data: {json.dumps({'type': 'progress', 'text': progress_message})}\n\n"
 
             if event_type == "done":
+                completed = True
+                logger.info("solver.stream.complete transport=wsgi")
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 return
             if event_type == "error":
+                failed = True
                 if isinstance(value, Exception):
                     logger.error(
                         "Solver event stream failed: %s",
@@ -142,6 +157,11 @@ def _stream_solver_events_sync(
             event_name, text = value
             yield f"data: {json.dumps({'type': event_name, 'text': text})}\n\n"
     finally:
+        if not completed and not failed:
+            logger.info(
+                "solver.stream.client_disconnected transport=wsgi "
+                "cancellation_requested=true; closing model event stream"
+            )
         cancellation_event.set()
 
 
@@ -167,21 +187,25 @@ def _stream_response(
 
 def homepage(request):
     """Render the application's landing page."""
+    logger.info("page.homepage.render method=%s", request.method)
     return render(request, 'mainapp/homepage.html')
 
 
 def about(request):
     """Render the page describing the application."""
+    logger.info("page.about.render method=%s", request.method)
     return render(request, 'mainapp/about.html')
 
 
 def llms(request):
     """Render the page listing the language models used by the application."""
+    logger.info("page.llms.render method=%s", request.method)
     return render(request, 'mainapp/llms.html')
 
 
 def generator(request):
     """Render the separate text-generation page."""
+    logger.info("page.generator.render method=%s generator_status=under_development", request.method)
     return render(request, 'mainapp/generator.html')
 
 
@@ -197,21 +221,29 @@ async def solver(request):
     """
     if request.method != "POST":
         if request.method == "GET":
+            logger.info("page.solver.render method=GET")
             return render(request, 'mainapp/solver.html')
+        logger.warning("solver.request.rejected method=%s", request.method)
         return HttpResponseNotAllowed(["GET", "POST"])
 
     try:
         action = request.POST.get("action")
+        logger.info("solver.request.begin action=%s", action or "missing")
 
         # Stream the transcription once so the live log and solve request share it.
         if action == "read":
             uploaded_file = request.FILES.get("fileInput")
             if uploaded_file is None:
+                logger.warning("solver.image_rejected reason=missing_upload")
                 return JsonResponse(
                     {"error": "Please upload an image before submitting."},
                     status=400,
                 )
 
+            logger.info(
+                "solver.image_transcription.begin upload_size_bytes=%s",
+                uploaded_file.size,
+            )
             cancellation_event = Event()
             return _stream_response(
                 request,
@@ -224,11 +256,17 @@ async def solver(request):
         if action == "solve":
             problem = request.POST.get("problem", "").strip()
             if not problem:
+                logger.warning("solver.solution_rejected reason=empty_problem")
                 return JsonResponse(
                     {"error": "No transcribed problem was provided."},
                     status=400,
                 )
 
+            logger.info(
+                "solver.solution.begin model=%s problem_length=%s",
+                TEXT_MODEL,
+                len(problem),
+            )
             cancellation_event = Event()
             return _stream_response(
                 request,
@@ -241,20 +279,24 @@ async def solver(request):
         if action == "pdf":
             solution = request.POST.get("solution", "").strip()
             if not solution:
+                logger.warning("solver.pdf_rejected reason=empty_solution")
                 return JsonResponse(
                     {"error": "No solution was provided to generate a PDF."},
                     status=400,
                 )
 
+            logger.info("solver.pdf.begin solution_length=%s", len(solution))
             try:
                 pdf_bytes = await asyncio.to_thread(generate_pdf_bytes, solution)
             except RuntimeError as exc:
                 logger.warning("Solver PDF generation failed: %s", exc)
                 return JsonResponse({"error": str(exc)}, status=422)
+            logger.info("solver.pdf.complete output_size_bytes=%s", len(pdf_bytes))
             response = HttpResponse(pdf_bytes, content_type="application/pdf")
             response["Content-Disposition"] = 'inline; filename="solution.pdf"'
             return response
 
+        logger.warning("solver.request.rejected action=%s reason=unsupported", action)
         return JsonResponse({"error": "Unsupported solver action."}, status=400)
     except Exception:
         # Keep the client response generic while retaining details in server logs.

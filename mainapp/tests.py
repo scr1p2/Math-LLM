@@ -1,6 +1,7 @@
 import asyncio
 import io
 import json
+import logging
 import subprocess
 import tempfile
 import time
@@ -20,6 +21,7 @@ from mainapp.views import solver as solver_view
 from utility_scripts.solver import (
     MAX_IMAGE_BYTES,
     PDFLATEX_TIMEOUT_SECONDS,
+    VISION_MODEL,
     _compile_pdf,
     _escape_latex_text_specials,
     _resize_image_bytes,
@@ -102,6 +104,32 @@ class SharedTemplateTests(SimpleTestCase):
                     self.client.get(path),
                     "data-cancel-pending-requests",
                 )
+
+    def test_solver_page_shows_workflow_steps_and_image_input(self):
+        response = self.client.get("/solver/")
+
+        self.assertContains(response, 'accept="image/*"')
+        for step in ("reading", "solving", "pdf"):
+            with self.subTest(step=step):
+                self.assertContains(response, f'data-solver-step="{step}"')
+
+
+class DevelopmentLoggingTests(SimpleTestCase):
+    def test_development_formatter_colors_logs_by_severity(self):
+        from mathllm.settings import ColoredFormatter
+
+        formatter = ColoredFormatter("%(levelname)s %(message)s")
+        record = logging.LogRecord("test", logging.ERROR, "", 0, "Failed", (), None)
+
+        self.assertEqual(formatter.format(record), "\033[31mERROR Failed\033[0m")
+
+    def test_homepage_view_logs_which_page_is_rendered(self):
+        with self.assertLogs("mainapp.views", level="INFO") as captured:
+            response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("page.homepage.render method=GET", captured.output[0])
+
 
 class PdfGenerationTests(SimpleTestCase):
     def test_generate_pdf_bytes_returns_valid_pdf_payload(self):
@@ -314,16 +342,16 @@ class SolverPipelineTests(SimpleTestCase):
             list(process_image_events(b"image bytes"))
 
     def test_process_image_events_report_model_progress_and_transcription(self):
-        chat = Mock(side_effect=[
-            RuntimeError("image input is not supported"),
-            iter([SimpleNamespace(message=SimpleNamespace(content="Problem"))]),
-        ])
+        chat = Mock(
+            return_value=iter([
+                SimpleNamespace(message=SimpleNamespace(content="Problem")),
+            ])
+        )
         client = SimpleNamespace(chat=chat)
 
         with (
             patch("utility_scripts.solver._image_to_ollama_payload", return_value="image"),
             patch("utility_scripts.solver.Client", return_value=client),
-            patch("utility_scripts.solver.VISION_MODELS", ["unsupported", "working"]),
         ):
             events = list(process_image_events(b"image bytes"))
 
@@ -331,15 +359,26 @@ class SolverPipelineTests(SimpleTestCase):
             events,
             [
                 ("status", "Preparing the uploaded image for the vision model..."),
-                ("status", "Transcribing with unsupported (1/2)..."),
-                (
-                    "status",
-                    "unsupported does not support image input; trying the next model.",
-                ),
-                ("status", "Transcribing with working (2/2)..."),
+                ("status", f"Transcribing with {VISION_MODEL}..."),
                 ("content", "Problem"),
             ],
         )
+        chat.assert_called_once()
+        self.assertEqual(chat.call_args.kwargs["model"], VISION_MODEL)
+
+    def test_process_image_events_reports_unsupported_vision_model(self):
+        client = SimpleNamespace(
+            chat=Mock(side_effect=RuntimeError("image input is not supported"))
+        )
+
+        with (
+            patch("utility_scripts.solver._image_to_ollama_payload", return_value="image"),
+            patch("utility_scripts.solver.Client", return_value=client),
+            self.assertRaisesRegex(RuntimeError, "does not support image input"),
+        ):
+            list(process_image_events(b"image bytes"))
+
+        client.chat.assert_called_once()
 
     def test_solve_events_only_stream_user_facing_solution(self):
         with patch(
@@ -451,9 +490,12 @@ class SolverViewTests(SimpleTestCase):
             while not cancellation_event.wait(0.01):
                 pass
 
-        with patch(
-            "mainapp.views.solve_events",
-            side_effect=cancellable_events,
+        with (
+            patch(
+                "mainapp.views.solve_events",
+                side_effect=cancellable_events,
+            ),
+            self.assertLogs("mainapp.views", level="INFO") as captured,
         ):
             response = asyncio.run(solver_view(request))
 
@@ -468,6 +510,9 @@ class SolverViewTests(SimpleTestCase):
         self.assertIn('"Starting DeepSeek"', first_chunk.decode())
         self.assertEqual(len(cancellation_events), 1)
         self.assertTrue(cancellation_events[0].is_set())
+        self.assertTrue(
+            any("solver.stream.client_disconnected" in line for line in captured.output)
+        )
 
     def test_closing_wsgi_solver_stream_signals_model_cancellation(self):
         request = RequestFactory().post(

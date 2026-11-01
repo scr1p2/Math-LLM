@@ -16,9 +16,11 @@ const pdfViewer = document.getElementById('feature-pdf-viewer') || document.getE
 const statusPanel = document.getElementById('feature-status-panel') || document.getElementById('status-panel');
 const statusLog = document.getElementById('status-log');
 const statusPill = document.getElementById('status-pill');
+const solverSteps = Array.from(document.querySelectorAll('[data-solver-step]'));
 const errorBanner = document.getElementById('feature-error-banner') || document.getElementById('error-banner');
 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 let progressEntry = null;
+let currentSolverStep = '';
 
 const loadingStates = {
     reading: {
@@ -90,8 +92,35 @@ function createStatusEntry(label, className = '') {
     return entry;
 }
 
-function setStatusPill(label) {
+function setStatusPill(label, state = '') {
     statusPill.textContent = label;
+    statusPill.dataset.state = state;
+}
+
+function setSolverStep(activeStep) {
+    if (['reading', 'solving', 'pdf'].includes(activeStep)) {
+        currentSolverStep = activeStep;
+    } else if (activeStep === '') {
+        currentSolverStep = '';
+    }
+
+    const currentStep = ['error', 'complete'].includes(activeStep)
+        ? currentSolverStep
+        : activeStep;
+    const activeIndex = solverSteps.findIndex((step) => step.dataset.solverStep === currentStep);
+    solverSteps.forEach((step, index) => {
+        const isComplete = activeStep === 'complete' || index < activeIndex;
+        const isActive = activeStep !== 'error' && activeStep !== 'complete' && index === activeIndex;
+        const isError = activeStep === 'error' && index === activeIndex;
+        step.classList.toggle('is-complete', isComplete);
+        step.classList.toggle('is-active', isActive);
+        step.classList.toggle('is-error', isError);
+        if (isActive || isError) {
+            step.setAttribute('aria-current', 'step');
+        } else {
+            step.removeAttribute('aria-current');
+        }
+    });
 }
 
 function showStatusPanel() {
@@ -125,6 +154,8 @@ function resetResultDisplay() {
     setHidden(solutionOutputPanel, true);
     hideStatusPanel();
     hideErrorBanner();
+    setSolverStep('');
+    setStatusPill('Working');
 }
 
 function showResult() {
@@ -259,7 +290,7 @@ async function solveProblemWithStream(problemText, signal) {
     return streamTextResponse(response, (chunk) => {
         solutionOutput.textContent += chunk;
         solutionOutput.scrollTop = solutionOutput.scrollHeight;
-        loadingMessage.textContent = 'DeepSeek is streaming the solution.';
+        loadingMessage.textContent = 'The math model is streaming the solution.';
     }, appendStatus, updateProgressStatus);
 }
 
@@ -272,7 +303,8 @@ async function handleSubmit(event) {
     resetResultDisplay();
     setLoadingState('reading');
     showStatusPanel();
-    setStatusPill('Reading');
+    setStatusPill('Reading', 'reading');
+    setSolverStep('reading');
 
     const requestScope = window.mathLlmRequests.begin();
     try {
@@ -288,7 +320,8 @@ async function handleSubmit(event) {
         }
 
         setLoadingState('solving');
-        setStatusPill('Solving');
+        setStatusPill('Solving', 'solving');
+        setSolverStep('solving');
         showStatusPanel();
         const solution = await solveProblemWithStream(trimmedProblem, requestScope.signal);
 
@@ -297,7 +330,8 @@ async function handleSubmit(event) {
         }
 
         setLoadingState('generatingPdf');
-        setStatusPill('PDF');
+        setStatusPill('PDF', 'pdf');
+        setSolverStep('pdf');
         appendStatus('Formatting the final solution into a PDF document...');
 
         const pdfFormData = new FormData();
@@ -313,7 +347,8 @@ async function handleSubmit(event) {
             contentDisposition.includes('.pdf');
 
         if (isPdfResponse) {
-            setStatusPill('Complete');
+            setStatusPill('Complete', 'complete');
+            setSolverStep('complete');
             showPdfResult(await response.blob());
             return;
         }
@@ -323,7 +358,8 @@ async function handleSubmit(event) {
             throw new Error(data.error || 'Something went wrong while creating the PDF.');
         }
 
-        setStatusPill('Complete');
+        setStatusPill('Complete', 'complete');
+        setSolverStep('complete');
         showTextResult('LLM response', data.text || data.message || 'No readable text detected.');
     } catch (error) {
         if (error.name === 'AbortError') {
@@ -336,7 +372,8 @@ async function handleSubmit(event) {
         setHidden(formPanel, false);
         setHidden(resultPanel, true);
         setHidden(loadingScreen, true);
-        setStatusPill('Error');
+        setStatusPill('Error', 'error');
+        setSolverStep('error');
         showStatusPanel();
     } finally {
         requestScope.finish();

@@ -3,9 +3,11 @@
 import asyncio
 import base64
 import io
+import logging
 import re
 import subprocess
 import tempfile
+import time
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -16,8 +18,10 @@ import httpx
 from PIL import Image, ImageOps
 from ollama import Client
 
-# Models tried in order when an uploaded image must be transcribed.
-VISION_MODELS = ["qwen2.5vl"]
+logger = logging.getLogger(__name__)
+
+# Model used to transcribe an uploaded image.
+VISION_MODEL = "qwen2.5vl"
 # Model used to produce the written, step-by-step math solution.
 TEXT_MODEL = "deepseek-r1:latest"
 # Bound external LaTeX compilation so a request cannot wait indefinitely.
@@ -122,6 +126,7 @@ def _resize_image_bytes(image_bytes: bytes, max_bytes: int = MAX_IMAGE_BYTES) ->
                 return encoded
 
     except Exception:
+        logger.exception("solver.image.resize_failed input_size_bytes=%s", len(image_bytes))
         pass
 
     raise ValueError(
@@ -137,6 +142,8 @@ def _compile_pdf(tex_path: Path) -> bytes:
     files next to the source and passing only the filename handles paths with
     spaces consistently. Compiler errors and timeouts are surfaced to callers.
     """
+    started_at = time.monotonic()
+    logger.info("solver.pdf.compile.begin source=%s", tex_path.name)
     try:
         completed = subprocess.run(
             [
@@ -153,8 +160,13 @@ def _compile_pdf(tex_path: Path) -> bytes:
             timeout=PDFLATEX_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:
+        logger.exception("solver.pdf.compile.failed reason=pdflatex_not_found")
         raise RuntimeError("pdflatex is not installed or not available on PATH.") from exc
     except subprocess.TimeoutExpired as exc:
+        logger.error(
+            "solver.pdf.compile.failed reason=timeout timeout_seconds=%s",
+            PDFLATEX_TIMEOUT_SECONDS,
+        )
         raise RuntimeError(
             f"PDF generation timed out after {PDFLATEX_TIMEOUT_SECONDS} seconds."
         ) from exc
@@ -172,6 +184,11 @@ def _compile_pdf(tex_path: Path) -> bytes:
         )
         line_match = re.search(r"(?m)^l\.(\d+)", error_output)
         location = f" at generated LaTeX line {line_match.group(1)}" if line_match else ""
+        logger.error(
+            "solver.pdf.compile.failed return_code=%s diagnostic=%s",
+            completed.returncode,
+            diagnostic,
+        )
         raise RuntimeError(
             f"PDF generation failed{location}: {diagnostic} "
             "Check math delimiters and special characters in the generated solution."
@@ -179,10 +196,17 @@ def _compile_pdf(tex_path: Path) -> bytes:
 
     pdf_path = tex_path.with_suffix(".pdf")
     if not pdf_path.exists():
+        logger.error("solver.pdf.compile.failed reason=output_missing")
         raise FileNotFoundError(
             "The PDF file was not created in the temporary output directory."
         )
-    return pdf_path.read_bytes()
+    pdf_bytes = pdf_path.read_bytes()
+    logger.info(
+        "solver.pdf.compile.complete output_size_bytes=%s elapsed_seconds=%.2f",
+        len(pdf_bytes),
+        time.monotonic() - started_at,
+    )
+    return pdf_bytes
 
 
 def _solution_document_body(solution_latex: str) -> str:
@@ -350,13 +374,16 @@ def generate_pdf_bytes(solution_latex: str) -> bytes:
     when the solution started, when it ended, and how long it took to produce.
     """
     if not solution_latex:
+        logger.warning("solver.pdf.prepare.rejected reason=empty_solution")
         raise ValueError("No solution content was provided to generate a PDF.")
 
+    logger.info("solver.pdf.prepare.begin solution_length=%s", len(solution_latex))
     started_at = datetime.now()
     title, solution_without_title = _extract_latex_title(solution_latex)
     title = title or "Step-by-Step Mathematical Solution"
     solution_body = _solution_document_body(solution_without_title)
     if not solution_body:
+        logger.warning("solver.pdf.prepare.rejected reason=empty_document_body")
         raise ValueError("The solution contains no LaTeX document body to render.")
     solution_body = _escape_latex_text_specials(solution_body)
 
@@ -398,7 +425,9 @@ def generate_pdf_bytes(solution_latex: str) -> bytes:
     with tempfile.TemporaryDirectory(prefix="mathllm_") as temp_dir:
         tex_path = Path(temp_dir) / "solution.tex"
         tex_path.write_text(document, encoding="utf-8")
-        return _compile_pdf(tex_path)
+        pdf_bytes = _compile_pdf(tex_path)
+    logger.info("solver.pdf.prepare.complete output_size_bytes=%s", len(pdf_bytes))
+    return pdf_bytes
 
 
 def stream_ollama_text(
@@ -415,11 +444,13 @@ def stream_ollama_text(
     emitting any text to the browser.
     """
     iterator = iter(response_iter)
+    completed = False
     try:
         while cancellation_event is None or not cancellation_event.is_set():
             try:
                 chunk = next(iterator)
             except StopIteration:
+                completed = True
                 return
             if cancellation_event is not None and cancellation_event.is_set():
                 return
@@ -439,6 +470,8 @@ def stream_ollama_text(
             if content:
                 yield prefix + content
     finally:
+        if cancellation_event is not None and cancellation_event.is_set() and not completed:
+            logger.info("solver.ollama.stream.cancelled response_close_requested=true")
         close = getattr(iterator, "close", None)
         if close is not None:
             close()
@@ -453,6 +486,11 @@ def _image_to_ollama_payload(image: Any) -> str:
     """
     original_bytes = ensure_image_bytes(image)
     image_bytes = _resize_image_bytes(original_bytes)
+    logger.info(
+        "solver.image.payload.prepared original_size_bytes=%s model_payload_size_bytes=%s",
+        len(original_bytes),
+        len(image_bytes),
+    )
     return base64.b64encode(image_bytes).decode("utf-8")
 
 
@@ -462,68 +500,70 @@ def process_image_events(
     cancellation_event: Event | None = None,
 ) -> Iterator[tuple[str, str]]:
     """Yield status and transcription events for an uploaded math problem."""
+    logger.info("solver.image.pipeline.begin")
     yield ("status", "Preparing the uploaded image for the vision model...")
     if cancellation_event is not None and cancellation_event.is_set():
+        logger.info("solver.image.pipeline.cancelled stage=preparation")
         return
     img_b64 = _image_to_ollama_payload(image)
     client = Client()
-    last_error = None
 
-    for model_index, model_name in enumerate(VISION_MODELS, start=1):
-        if cancellation_event is not None and cancellation_event.is_set():
-            return
-        yield (
-            "status",
-            f"Transcribing with {model_name} "
-            f"({model_index}/{len(VISION_MODELS)})...",
+    if cancellation_event is not None and cancellation_event.is_set():
+        logger.info("solver.image.pipeline.cancelled stage=model_start")
+        return
+    yield ("status", f"Transcribing with {VISION_MODEL}...")
+    try:
+        started_at = time.monotonic()
+        logger.info("solver.image.model.begin model=%s", VISION_MODEL)
+        response_iter = client.chat(
+            model=VISION_MODEL,
+            messages=[{
+                "role": "user",
+                "content": "Transcribe this math problem exactly, using LaTeX for all notation.",
+                "images": [img_b64],
+            }],
+            options={
+                "num_ctx": 8000,
+                "num_predict": 4000,
+            },
+            stream=True,
         )
-        try:
-            response_iter = client.chat(
-                model=model_name,
-                messages=[{
-                    "role": "user",
-                    "content": "Transcribe this math problem exactly, using LaTeX for all notation.",
-                    "images": [img_b64],
-                }],
-                options={
-                    "num_ctx": 8000,
-                    "num_predict": 4000,
-                },
-                stream=True,
+        chunk_count = 0
+        for text in stream_ollama_text(
+            response_iter,
+            cancellation_event=cancellation_event,
+        ):
+            chunk_count += 1
+            yield ("content", text)
+        if cancellation_event is not None and cancellation_event.is_set():
+            logger.info("solver.image.model.cancelled model=%s", VISION_MODEL)
+        else:
+            logger.info(
+                "solver.image.model.complete model=%s chunks=%s elapsed_seconds=%.2f",
+                VISION_MODEL,
+                chunk_count,
+                time.monotonic() - started_at,
             )
-            for text in stream_ollama_text(
-                response_iter,
-                cancellation_event=cancellation_event,
-            ):
-                yield ("content", text)
-            return
-        except Exception as exc:  # pragma: no cover - exercised through integration tests
-            last_error = exc
-            if isinstance(exc, httpx.ConnectError):
-                _raise_ollama_connection_error(exc)
-            message = str(exc).lower()
-            if "too large" in message or "entity too large" in message or "payload too large" in message:
-                raise RuntimeError(
-                    "The uploaded image is too large for the Ollama model. "
-                    "Please upload a smaller image or a lower-resolution scan."
-                ) from exc
-            if (
-                "image input is not supported" in message
-                or "mmproj" in message
-                or "not supported" in message
-            ):
-                yield (
-                    "status",
-                    f"{model_name} does not support image input; trying the next model.",
-                )
-                continue
-            raise
-
-    raise RuntimeError(
-        "No Ollama vision model is available for image input. "
-        "Install a multimodal model such as `llava:latest` or `qwen2.5vl:7b`, "
-        "then start Ollama again."
-    ) from last_error
+    except Exception as exc:  # pragma: no cover - exercised through integration tests
+        logger.exception("solver.image.model.failed model=%s", VISION_MODEL)
+        if isinstance(exc, httpx.ConnectError):
+            _raise_ollama_connection_error(exc)
+        message = str(exc).lower()
+        if "too large" in message or "entity too large" in message or "payload too large" in message:
+            raise RuntimeError(
+                "The uploaded image is too large for the Ollama model. "
+                "Please upload a smaller image or a lower-resolution scan."
+            ) from exc
+        if (
+            "image input is not supported" in message
+            or "mmproj" in message
+            or "not supported" in message
+        ):
+            raise RuntimeError(
+                f"The configured Ollama vision model '{VISION_MODEL}' does not support "
+                "image input. Install a multimodal model and update VISION_MODEL."
+            ) from exc
+        raise
 
 
 def process_image(
@@ -552,7 +592,10 @@ def solve(
     """
     try:
         if cancellation_event is not None and cancellation_event.is_set():
+            logger.info("solver.text.pipeline.cancelled stage=before_model_request")
             return
+        started_at = time.monotonic()
+        logger.info("solver.text.model.begin model=%s problem_length=%s", TEXT_MODEL, len(problem_text))
         client = Client()
         response_iter = client.chat(
             model=TEXT_MODEL,
@@ -562,11 +605,24 @@ def solve(
             }],
             stream=True,
         )
-        yield from stream_ollama_text(
+        chunk_count = 0
+        for text in stream_ollama_text(
             response_iter,
             cancellation_event=cancellation_event,
-        )
+        ):
+            chunk_count += 1
+            yield text
+        if cancellation_event is not None and cancellation_event.is_set():
+            logger.info("solver.text.model.cancelled model=%s", TEXT_MODEL)
+        else:
+            logger.info(
+                "solver.text.model.complete model=%s chunks=%s elapsed_seconds=%.2f",
+                TEXT_MODEL,
+                chunk_count,
+                time.monotonic() - started_at,
+            )
     except httpx.ConnectError as exc:
+        logger.exception("solver.text.model.failed model=%s reason=connection_error", TEXT_MODEL)
         _raise_ollama_connection_error(exc)
 
 
@@ -589,5 +645,8 @@ async def solve_problem_to_pdf(problem_text: str) -> bytes:
     Both model inference and subprocess-based PDF compilation are synchronous
     operations, so each is moved to a worker thread before awaiting its result.
     """
+    logger.info("solver.solve_to_pdf.begin problem_length=%s", len(problem_text))
     solution = await asyncio.to_thread(lambda: "".join(solve(problem_text)))
-    return await asyncio.to_thread(generate_pdf_bytes, solution)
+    pdf_bytes = await asyncio.to_thread(generate_pdf_bytes, solution)
+    logger.info("solver.solve_to_pdf.complete output_size_bytes=%s", len(pdf_bytes))
+    return pdf_bytes
